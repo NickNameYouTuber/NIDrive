@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: NIDriveBot-backend
+    ports:
+      - "7070:7070"
+    volumes:
+      - ./backend:/app
+      - uploads_data:/app/uploads
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-me}
+      - UPLOAD_DIR=/app/uploads
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./NIDriveBot.db}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: NIDriveBot-frontend
+    ports:
+      - "7071:7071"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:7070
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  telegram-bot:
+    build: ./telegram_bot
+    container_name: NIDriveBot-telegram-bot
+    volumes:
+      - ./telegram_bot:/app
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - API_BASE_URL=http://backend:7070
+      - WEB_APP_URL=${WEB_APP_URL:-http://localhost:7071}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
+    name: NIDriveBot-uploads
