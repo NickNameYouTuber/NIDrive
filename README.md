@@ -1,6 +1,6 @@
-# NIDriveBot - Персональное хранилище файлов
+# NIDrive - Персональное хранилище файлов
 
-NIDriveBot - это персональное хранилище файлов с доступом через веб-интерфейс и Telegram бота. Система позволяет загружать, хранить и управлять файлами с ограничением 5 ГБ на пользователя.
+NIDrive - это персональное хранилище файлов с доступом через веб-интерфейс и Telegram бота. Система позволяет загружать, хранить и управлять файлами с ограничением 5 ГБ на пользователя.
 
 ## Архитектура
 
@@ -8,7 +8,7 @@ NIDriveBot - это персональное хранилище файлов с 
 
 1. **Backend API (Python/FastAPI)** - отвечает за хранение файлов, аутентификацию и управление данными
 2. **Frontend (React/TypeScript/Tailwind CSS)** - предоставляет веб-интерфейс для работы с файлами
-3. **Telegram Bot (Python)** - позволяет взаимодействовать с хранилищем через Telegram
+3. **Telegram  (Python)** - позволяет взаимодействовать с хранилищем через Telegram
 
 ## Настройка и запуск
 
@@ -27,7 +27,7 @@ NIDriveBot - это персональное хранилище файлов с 
    cp .env.example .env
    ```
 
-3. Настройте переменные окружения в файле `.env`, обязательно укажите ваш Telegram Bot Token.
+3. Настройте переменные окружения в файле `.env`, обязательно укажите ваш Telegram  Token.
 
 4. Запустите все сервисы одной командой:
    ```
@@ -42,13 +42,13 @@ NIDriveBot - это персональное хранилище файлов с 
 Сервисы будут доступны по следующим адресам:
 - Backend API: http://localhost:7070
 - Frontend: http://localhost:7071
-- Telegram Bot: запущен в фоновом режиме
+- Telegram : запущен в фоновом режиме
 
 Для просмотра логов используйте:
 ```
 docker-compose logs -f [service_name]
 ```
-где `[service_name]` - один из: `backend`, `frontend`, `telegram-bot` или пропустите для просмотра всех логов.
+где `[service_name]` - один из: `backend`, `frontend`, `telegram-` или пропустите для просмотра всех логов.
 
 Для остановки всех сервисов:
 ```
@@ -67,7 +67,7 @@ SECRET_KEY=your-secret-key-change-me
 UPLOAD_DIR=./uploads
 
 # Настройки Telegram
-TELEGRAM_BOT_TOKEN=your-telegram-bot-token
+TELEGRAM__TOKEN=your-telegram--token
 WEB_APP_URL=http://localhost:7071
 API_BASE_URL=http://localhost:7070
 ```
@@ -119,11 +119,11 @@ Backend API будет доступен по адресу http://localhost:7070
 
 Веб-интерфейс будет доступен по адресу http://localhost:7071
 
-#### Telegram Bot (Python)
+#### Telegram  (Python)
 
-1. Перейдите в директорию telegram_bot:
+1. Перейдите в директорию telegram_:
    ```
-   cd telegram_bot
+   cd telegram_
    ```
 
 2. Создайте виртуальное окружение:
@@ -168,7 +168,7 @@ Backend API будет доступен по адресу http://localhost:7070
 
 - **Backend**: Python, FastAPI, SQLAlchemy, SQLite
 - **Frontend**: React, TypeScript, Tailwind CSS, Vite
-- **Telegram Bot**: Python, python-telegram-bot
+- **Telegram **: Python, python-telegram-
 
 ## Развертывание в продакшн
 
@@ -185,7 +185,7 @@ Backend API будет доступен по адресу http://localhost:7070
 ### Структура проекта
 
 ```
-NIDriveBot/
+NIDrive/
 ├── backend/              # FastAPI бэкенд
 │   ├── main.py           # Основной файл приложения
 │   ├── models.py         # Модели базы данных
@@ -204,7 +204,7 @@ NIDriveBot/
 │   │   └── types/        # TypeScript типы
 │   └── ...
 │
-└── telegram_bot/         # Telegram бот
+└── telegram_/         # Telegram бот
     ├── main.py           # Основной файл бота
     └── requirements.txt  # Зависимости
 ```
