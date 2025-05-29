@@ -25,12 +25,21 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="NIDriveBot API", description="File storage backend service")
 
 # Configure CORS
+# Обновленные настройки CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:7071", "http://127.0.0.1:7071"],  # Точные домены фронтенда
+    allow_origins=[
+        "http://localhost:7071", 
+        "http://127.0.0.1:7071",
+        "http://localhost:5173",  # Vite dev server по умолчанию
+        "https://drive.nicorp.tech",  # Продакшен домен
+        "http://drive.nicorp.tech",   # HTTP версия
+        "https://nicorp.tech",         # Основной домен
+        "http://nicorp.tech",
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Разрешаем все методы
+    allow_headers=["*"],  # Разрешаем все заголовки
 )
 
 # Dependency to get DB session
