@@ -186,7 +186,7 @@ const DashboardPage: React.FC = () => {
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Telegram</p>
             <p className="font-medium dark:text-gray-200">@{user?.username || 'user'}</p>
             
-            <div className="mt-4 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-md">
+            <div className="mt-4 p-3 bg-primary-50 dark:bg-[#2e2e2e] rounded-md">
               <p className="text-sm text-primary-700 dark:text-primary-400">
                 Ваши файлы также доступны через Telegram бота
               </p>
@@ -215,7 +215,7 @@ const DashboardPage: React.FC = () => {
                     href={file.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 rounded-md hover:bg-primary-100 dark:hover:bg-primary-900/30"
+                    className="px-3 py-1 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-[#2e2e2e] rounded-md hover:bg-primary-100 dark:hover:bg-[#3e3e3e]"
                   >
                     Открыть
                   </a>

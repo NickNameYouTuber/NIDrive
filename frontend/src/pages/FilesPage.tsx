@@ -134,7 +134,7 @@ const FilesPage: React.FC = () => {
           onClick={() => setCurrentFolder(null)}
           className={`px-3 py-1 text-sm rounded-md ${
             currentFolder === null
-              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
+              ? 'bg-primary-100 text-primary-700 dark:bg-[#2e2e2e] dark:text-primary-400'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
           }`}
         >
@@ -147,7 +147,7 @@ const FilesPage: React.FC = () => {
             onClick={() => setCurrentFolder(folder)}
             className={`px-3 py-1 text-sm rounded-md ${
               currentFolder === folder
-                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
+                ? 'bg-primary-100 text-primary-700 dark:bg-[#2e2e2e] dark:text-primary-400'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
             }`}
           >

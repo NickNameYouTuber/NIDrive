@@ -91,9 +91,10 @@ const Layout: React.FC = () => {
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <NavLink
               to="/dashboard"
+              end
               className={({ isActive }: { isActive: boolean }) =>
                 `${isActive 
-                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+                  ? 'bg-primary-50 text-primary-600 dark:bg-[#2e2e2e] dark:text-primary-400'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 hover:text-primary-600 dark:hover:bg-dark-border dark:hover:text-primary-400'
                 } flex items-center px-4 py-2 text-sm font-medium rounded-md`
               }
@@ -106,7 +107,7 @@ const Layout: React.FC = () => {
               to="/dashboard/files"
               className={({ isActive }: { isActive: boolean }) =>
                 `${isActive 
-                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+                  ? 'bg-primary-50 text-primary-600 dark:bg-[#2e2e2e] dark:text-primary-400'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 hover:text-primary-600 dark:hover:bg-dark-border dark:hover:text-primary-400'
                 } flex items-center px-4 py-2 text-sm font-medium rounded-md`
               }
@@ -119,7 +120,7 @@ const Layout: React.FC = () => {
               to="/dashboard/upload"
               className={({ isActive }: { isActive: boolean }) =>
                 `${isActive 
-                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
+                  ? 'bg-primary-50 text-primary-600 dark:bg-[#2e2e2e] dark:text-primary-400'
                   : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 hover:text-primary-600 dark:hover:bg-dark-border dark:hover:text-primary-400'
                 } flex items-center px-4 py-2 text-sm font-medium rounded-md`
               }
