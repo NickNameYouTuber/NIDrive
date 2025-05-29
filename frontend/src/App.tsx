@@ -102,7 +102,7 @@ function App() {
       <Route path="/auth/callback" element={<TelegramAuthCallback />} />
       
       {/* Защищенные маршруты пользовательского интерфейса диска */}
-      <Route path="/drive" element={
+      <Route path="/dashboard" element={
         <ProtectedRoute>
           <Layout />
         </ProtectedRoute>
@@ -111,6 +111,13 @@ function App() {
         <Route path="files" element={<FilesPage />} />
         <Route path="upload" element={<UploadPage />} />
       </Route>
+      
+      {/* Редирект с / на /dashboard при авторизации */}
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Navigate to="/dashboard" replace />
+        </ProtectedRoute>
+      } />
       
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

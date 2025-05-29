@@ -114,18 +114,18 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Обзор</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Обзор</h1>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Storage Card */}
-        <div className="p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-lg font-medium text-gray-900">Использование хранилища</h2>
+        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Использование хранилища</h2>
           
           {storageInfo && (
             <>
               <div className="mt-4 mb-2">
-                <div className="h-2 bg-gray-200 rounded-full">
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
                   <div 
                     className="h-2 rounded-full bg-primary-600" 
                     style={{ width: `${storageInfo.percentage}%` }}
@@ -133,12 +133,12 @@ const DashboardPage: React.FC = () => {
                 </div>
               </div>
               
-              <div className="flex justify-between text-sm text-gray-600">
+              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
                 <span>{formatBytes(storageInfo.used)}</span>
                 <span>{formatBytes(storageInfo.total)}</span>
               </div>
               
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                 Использовано {storageInfo.percentage.toFixed(1)}% из доступных 5 ГБ
               </p>
             </>
@@ -146,25 +146,25 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Files Count Card */}
-        <div className="p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-lg font-medium text-gray-900">Файлы</h2>
+        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Файлы</h2>
           
           {fileStats && (
             <div className="mt-4">
               <p className="text-3xl font-bold text-primary-600">
                 {fileStats.totalCount}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Всего файлов в хранилище
               </p>
               
               <div className="mt-4">
-                <h3 className="text-sm font-medium text-gray-700">По типам файлов</h3>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">По типам файлов</h3>
                 <ul className="mt-2 space-y-2">
                   {Object.entries(fileStats.byType).slice(0, 3).map(([type, count]) => (
                     <li key={type} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">.{type}</span>
-                      <span className="text-sm font-medium">{count} файлов</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">.{type}</span>
+                      <span className="text-sm font-medium dark:text-gray-300">{count} файлов</span>
                     </li>
                   ))}
                 </ul>
@@ -174,20 +174,20 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* User Info Card */}
-        <div className="p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-lg font-medium text-gray-900">Аккаунт</h2>
+        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Аккаунт</h2>
           
           <div className="mt-4">
-            <p className="text-sm text-gray-600">Имя пользователя</p>
-            <p className="font-medium">
+            <p className="text-sm text-gray-600 dark:text-gray-400">Имя пользователя</p>
+            <p className="font-medium dark:text-gray-200">
               {user?.first_name} {user?.last_name}
             </p>
             
-            <p className="mt-2 text-sm text-gray-600">Telegram</p>
-            <p className="font-medium">@{user?.username || 'user'}</p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Telegram</p>
+            <p className="font-medium dark:text-gray-200">@{user?.username || 'user'}</p>
             
-            <div className="mt-4 p-3 bg-primary-50 rounded-md">
-              <p className="text-sm text-primary-700">
+            <div className="mt-4 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-md">
+              <p className="text-sm text-primary-700 dark:text-primary-400">
                 Ваши файлы также доступны через Telegram бота
               </p>
             </div>
@@ -197,17 +197,17 @@ const DashboardPage: React.FC = () => {
 
       {/* Recent Files */}
       {fileStats && fileStats.recentFiles.length > 0 && (
-        <div className="p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-lg font-medium text-gray-900">Недавние файлы</h2>
+        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Недавние файлы</h2>
           
-          <ul className="mt-4 divide-y divide-gray-200">
+          <ul className="mt-4 divide-y divide-gray-200 dark:divide-gray-700">
             {fileStats.recentFiles.map((file) => (
               <li key={file.id} className="py-3">
                 <div className="flex items-center">
                   {getFileIcon(file.filename)}
                   <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900">{file.filename}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{file.filename}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       {formatBytes(file.file_size)} • {new Date(file.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -215,7 +215,7 @@ const DashboardPage: React.FC = () => {
                     href={file.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1 text-xs text-primary-600 bg-primary-50 rounded-md hover:bg-primary-100"
+                    className="px-3 py-1 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 rounded-md hover:bg-primary-100 dark:hover:bg-primary-900/30"
                   >
                     Открыть
                   </a>

@@ -125,17 +125,17 @@ const FilesPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Файлы</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Файлы</h1>
       </div>
 
       {/* Folder navigation */}
-      <div className="flex flex-wrap gap-2 pb-4 border-b border-gray-200">
+      <div className="flex flex-wrap gap-2 pb-4 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={() => setCurrentFolder(null)}
           className={`px-3 py-1 text-sm rounded-md ${
             currentFolder === null
-              ? 'bg-primary-100 text-primary-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
           }`}
         >
           Все файлы
@@ -147,8 +147,8 @@ const FilesPage: React.FC = () => {
             onClick={() => setCurrentFolder(folder)}
             className={`px-3 py-1 text-sm rounded-md ${
               currentFolder === folder
-                ? 'bg-primary-100 text-primary-700'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
             }`}
           >
             {folder}
@@ -159,38 +159,38 @@ const FilesPage: React.FC = () => {
       {/* File list */}
       {filteredFiles.length === 0 ? (
         <div className="p-8 text-center">
-          <DocumentIcon className="w-12 h-12 mx-auto text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Нет файлов</h3>
-          <p className="mt-1 text-sm text-gray-500">
+          <DocumentIcon className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500" />
+          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Нет файлов</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {currentFolder === null
               ? 'У вас пока нет загруженных файлов'
               : `В папке "${currentFolder}" пока нет файлов`}
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden bg-white shadow sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
+        <div className="overflow-hidden bg-white dark:bg-dark-card shadow dark:shadow-gray-800 sm:rounded-md">
+          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
             {filteredFiles.map(file => (
               <li key={file.id}>
                 <div className="px-4 py-4 sm:px-6">
                   <div className="flex items-center">
                     {getFileIcon(file.filename)}
                     <div className="flex-1 min-w-0 ml-4">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                         {file.filename}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {formatBytes(file.file_size)} • {new Date(file.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     <div className="flex space-x-2">
                       <button
                         onClick={() => copyLinkToClipboard(file.id, file.file_url)}
-                        className="p-2 text-gray-400 rounded-full hover:bg-gray-100 hover:text-gray-500"
+                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
                         title="Копировать ссылку"
                       >
                         {copySuccess === file.id ? (
-                          <span className="text-xs text-green-600">Скопировано!</span>
+                          <span className="text-xs text-green-600 dark:text-green-400">Скопировано!</span>
                         ) : (
                           <LinkIcon className="w-5 h-5" />
                         )}
@@ -198,14 +198,14 @@ const FilesPage: React.FC = () => {
                       <a
                         href={`${API_BASE_URL}${file.file_url}`}
                         download
-                        className="p-2 text-gray-400 rounded-full hover:bg-gray-100 hover:text-gray-500"
+                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
                         title="Скачать"
                       >
                         <ArrowDownTrayIcon className="w-5 h-5" />
                       </a>
                       <button
                         onClick={() => deleteFile(file.id)}
-                        className="p-2 text-gray-400 rounded-full hover:bg-gray-100 hover:text-red-500"
+                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-500 dark:hover:text-red-400"
                         title="Удалить"
                       >
                         <TrashIcon className="w-5 h-5" />

@@ -26,7 +26,7 @@ const Layout: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-dark-text transition-colors duration-200">
       {/* Mobile menu button */}
-      <div className="fixed top-4 left-4 z-50 md:hidden">
+      <div className="fixed top-4 right-4 z-50 md:hidden">
         <button 
           onClick={toggleSidebar}
           className="p-2 rounded-md bg-white dark:bg-dark-card shadow-md"
@@ -90,7 +90,7 @@ const Layout: React.FC = () => {
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <NavLink
-              to="/"
+              to="/dashboard"
               className={({ isActive }: { isActive: boolean }) =>
                 `${isActive 
                   ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
@@ -103,7 +103,7 @@ const Layout: React.FC = () => {
               Дашборд
             </NavLink>
             <NavLink
-              to="/drive/files"
+              to="/dashboard/files"
               className={({ isActive }: { isActive: boolean }) =>
                 `${isActive 
                   ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
@@ -116,7 +116,7 @@ const Layout: React.FC = () => {
               Файлы
             </NavLink>
             <NavLink
-              to="/drive/upload"
+              to="/dashboard/upload"
               className={({ isActive }: { isActive: boolean }) =>
                 `${isActive 
                   ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
