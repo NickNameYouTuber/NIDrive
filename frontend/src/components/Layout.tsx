@@ -145,6 +145,10 @@ const Layout: React.FC = () => {
 
       {/* Main content */}
       <div className="md:pl-64 transition-all duration-300">
+        {/* Заголовок в мобильной версии для центрирования с бургер-меню */}
+        <div className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-dark-bg flex items-center justify-center md:hidden z-30">
+          <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400">NIDriveBot</h1>
+        </div>
         <main className="p-4 md:p-6 pt-16 md:pt-6">
           <Outlet />
         </main>

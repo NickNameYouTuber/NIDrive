@@ -112,25 +112,25 @@ const UploadPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Загрузка файлов</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Загрузка файлов</h1>
       </div>
 
       {/* Folder selection */}
-      <div className="p-6 bg-white rounded-lg shadow-md">
-        <label htmlFor="folder" className="block text-sm font-medium text-gray-700">
+      <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
+        <label htmlFor="folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Папка (необязательно)
         </label>
         <div className="mt-1">
           <input
             type="text"
             id="folder"
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 sm:text-sm"
             placeholder="Введите имя папки"
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
           />
         </div>
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
           Оставьте пустым, чтобы загрузить в корневую директорию
         </p>
       </div>
@@ -139,18 +139,20 @@ const UploadPage: React.FC = () => {
       <div 
         {...getRootProps()} 
         className={`p-10 border-2 border-dashed rounded-lg cursor-pointer ${
-          isDragActive ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-primary-500 hover:bg-gray-50'
+          isDragActive 
+            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 dark:border-primary-700' 
+            : 'border-gray-300 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
         }`}
       >
         <input {...getInputProps()} />
         <div className="flex flex-col items-center justify-center text-center">
-          <ArrowUpTrayIcon className="w-12 h-12 text-gray-400" />
-          <p className="mt-2 text-sm font-medium text-gray-900">
+          <ArrowUpTrayIcon className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+          <p className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">
             {isDragActive
               ? 'Перетащите файлы сюда...'
               : 'Перетащите файлы сюда или нажмите для выбора'}
           </p>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             Максимальный размер всех файлов: 5 ГБ
           </p>
         </div>
@@ -158,8 +160,8 @@ const UploadPage: React.FC = () => {
 
       {/* Upload list */}
       {uploads.length > 0 && (
-        <div className="p-6 bg-white rounded-lg shadow-md">
-          <h2 className="text-lg font-medium text-gray-900">Загрузки</h2>
+        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Загрузки</h2>
           
           <ul className="mt-4 space-y-4">
             {uploads.map(upload => (
@@ -180,10 +182,10 @@ const UploadPage: React.FC = () => {
                     )}
                     
                     <div className="flex-1 min-w-0 ml-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                         {upload.name}
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
                         {formatBytes(upload.size)}
                       </p>
                       {upload.error && (
@@ -195,14 +197,14 @@ const UploadPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => removeUpload(upload.id)}
-                    className="p-1 ml-2 text-gray-400 rounded-full hover:text-gray-500 hover:bg-gray-100"
+                    className="p-1 ml-2 text-gray-400 dark:text-gray-500 rounded-full hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     <XMarkIcon className="w-5 h-5" />
                   </button>
                 </div>
                 
                 {/* Progress bar */}
-                <div className="w-full h-1 mt-2 bg-gray-200 rounded-full">
+                <div className="w-full h-1 mt-2 bg-gray-200 dark:bg-gray-700 rounded-full">
                   <div
                     className={`h-1 rounded-full ${
                       upload.status === 'error'
