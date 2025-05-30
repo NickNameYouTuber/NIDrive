@@ -27,7 +27,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="NIDriveBot API", description="File storage backend service")
 
 # Configure CORS
-# Обновленные настройки CORS
+# Обновленные настройки CORS с детальными разрешениями
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -38,10 +38,14 @@ app.add_middleware(
         "http://drive.nicorp.tech",   # HTTP версия
         "https://nicorp.tech",         # Основной домен
         "http://nicorp.tech",
+        "http://backend:7070",         # Docker сервис
+        "http://frontend:7071",        # Docker сервис
     ],
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешаем все методы
-    allow_headers=["*"],  # Разрешаем все заголовки
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Явно указываем разрешенные методы
+    allow_headers=["Authorization", "Content-Type"],  # Явно указываем разрешенные заголовки
+    expose_headers=["Content-Type"],
+    max_age=600,  # Кэширование запросов preflight на 10 минут
 )
 
 # Dependency to get DB session
@@ -360,7 +364,9 @@ def delete_file(
     
     return {"message": "File deleted successfully"}
 
+# Два маршрута для переключения приватности: PUT и POST для совместимости с Nginx
 @app.put("/files/{file_id}/toggle-privacy", response_model=schemas.File)
+@app.post("/files/{file_id}/toggle-privacy", response_model=schemas.File)  # Дублируем с POST для совместимости
 def toggle_file_privacy(
     file_id: str,
     current_user: models.User = Depends(get_current_user),
