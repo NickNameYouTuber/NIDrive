@@ -171,24 +171,37 @@ async def download_file(file_id: str, current_user: models.User = Depends(get_cu
     )
 
 # Конфигурируем публичный доступ
-@app.get("/public/{public_url_id}/{filename}")
-async def get_public_file(public_url_id: str, filename: str, db: Session = Depends(get_db)):
+@app.get("/public/{user_id}/{filename}")
+async def get_public_file(user_id: str, filename: str, db: Session = Depends(get_db)):
     """Access a public file via its public URL - no authentication required"""
-    public_url = f"/public/{public_url_id}/{filename}"
-    file = models.get_file_by_public_url(db, public_url=public_url)
+    # Ищем файл по идентификатору пользователя и имени файла
+    files = db.query(models.File).filter(
+        models.File.user_id == user_id,
+        models.File.filename == filename,
+        models.File.is_public == True
+    ).all()
     
-    if not file or not file.is_public:
-        raise HTTPException(status_code=404, detail="File not found or not public")
+    if not files:
+        raise HTTPException(status_code=404, detail="File not found")
     
-    # Проверяем путь к файлу
-    if not os.path.exists(file.file_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
+    # Используем первый найденный публичный файл
+    file = files[0]
     
-    return FileResponse(
-        path=file.file_path,
-        filename=file.filename,
-        media_type="application/octet-stream"
-    )
+    # Проверяем наличие файла на диске
+    file_path = Path(file.file_path)
+    
+    if not file_path.exists():
+        # Пробуем найти файл в новой структуре директорий
+        public_path = Path(PUBLIC_DIR) / user_id / filename
+        if public_path.exists():
+            # Обновляем путь в базе данных
+            file.file_path = str(public_path)
+            db.commit()
+            return FileResponse(str(public_path), filename=filename)
+        else:
+            raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(str(file_path), filename=filename)
 
 @app.get("/")
 def read_root():
