@@ -142,10 +142,6 @@ class FileAccessMiddleware(BaseHTTPMiddleware):
 # Добавляем мидлварь для проверки доступа к файлам
 app.add_middleware(FileAccessMiddleware)
 
-# Монтируем отдельно приватные и публичные файлы
-app.mount("/files", StaticFiles(directory=PRIVATE_DIR), name="private_files")
-app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public_files")
-
 # Создаем эндпоинт для скачивания файлов
 @app.get("/api/files/download/{file_id}")
 async def download_file(file_id: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -170,38 +166,78 @@ async def download_file(file_id: str, current_user: models.User = Depends(get_cu
         media_type="application/octet-stream"
     )
 
-# Конфигурируем публичный доступ
-@app.get("/public/{user_id}/{filename}")
-async def get_public_file(user_id: str, filename: str, db: Session = Depends(get_db)):
-    """Access a public file via its public URL - no authentication required"""
-    # Ищем файл по идентификатору пользователя и имени файла
-    files = db.query(models.File).filter(
-        models.File.user_id == user_id,
-        models.File.filename == filename,
-        models.File.is_public == True
-    ).all()
+# Прямой доступ к файлам
+@app.get("/files/{file_id}")
+async def get_private_file(file_id: str, request: Request, db: Session = Depends(get_db)):
+    """Доступ к приватному файлу через ID - требует аутентификацию"""
+    # Получаем токен из заголовка
+    auth_header = request.headers.get("Authorization")
     
-    if not files:
-        raise HTTPException(status_code=404, detail="File not found")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     
-    # Используем первый найденный публичный файл
-    file = files[0]
+    token = auth_header.replace("Bearer ", "")
     
-    # Проверяем наличие файла на диске
-    file_path = Path(file.file_path)
-    
-    if not file_path.exists():
-        # Пробуем найти файл в новой структуре директорий
-        public_path = Path(PUBLIC_DIR) / user_id / filename
-        if public_path.exists():
-            # Обновляем путь в базе данных
-            file.file_path = str(public_path)
-            db.commit()
-            return FileResponse(str(public_path), filename=filename)
-        else:
+    try:
+        # Проверяем токен
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+            
+        # Ищем файл по ID
+        file = db.query(models.File).filter(models.File.id == file_id).first()
+        
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Проверяем права доступа - файл должен принадлежать пользователю или быть публичным
+        if file.user_id != user_id and not file.is_public:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Проверяем существование файла
+        if not os.path.exists(file.file_path):
             raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        return FileResponse(
+            path=file.file_path,
+            filename=file.filename,
+            media_type="application/octet-stream"
+        )
+        
+    except (jwt.JWTError, jwt.ExpiredSignatureError):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+@app.get("/public/{file_id}")
+async def get_public_file(file_id: str, db: Session = Depends(get_db)):
+    """Прямой доступ к публичному файлу через ID - не требует аутентификацию"""
+    # Ищем файл по ID
+    file = db.query(models.File).filter(
+        models.File.id == file_id,
+        models.File.is_public == True
+    ).first()
     
-    return FileResponse(str(file_path), filename=filename)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found or not public")
+    
+    # Проверяем существование файла
+    if not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=file.file_path,
+        filename=file.filename,
+        media_type="application/octet-stream"
+    )
 
 @app.get("/")
 def read_root():
@@ -447,14 +483,17 @@ async def upload_file(
     finally:
         file.file.close()
     
+    # Создаем файловый ID
+    file_id = str(uuid.uuid4())
+    
     # Создаем URL для файла в зависимости от типа (публичный/приватный)
     if is_public:
-        # Публичный файл - доступен через /public/
-        file_url = f"/public/{current_user.id}/{file.filename if not folder else folder + '/' + file.filename}"
+        # Публичный файл - доступен через /public/{file_id}
+        file_url = f"/public/{file_id}"
         public_url = file_url  # Для публичных файлов URL совпадает
     else:
-        # Приватный файл - доступен через /files/ с токеном
-        file_url = f"/files/{current_user.id}/{file.filename if not folder else folder + '/' + file.filename}"
+        # Приватный файл - доступен через /files/{file_id}
+        file_url = f"/files/{file_id}"
         public_url = None
     
     # Save file info to database
@@ -470,8 +509,8 @@ async def upload_file(
             is_public=is_public,
             public_url=public_url
         )
-        # Обновляем ID файла, чтобы соответствовать URL
-        db_file.id = str(uuid.uuid4())
+        # Задаем ID файла
+        db_file.id = file_id
         db.commit()
         db.refresh(db_file)
         
@@ -502,47 +541,15 @@ def toggle_privacy_internal(file_id: str, current_user: models.User, db: Session
     # Переключаем статус приватности
     new_status = not file.is_public
     
-    # Получаем путь к файлу
-    file_path = Path(file.file_path)
-    
-    # Определяем нужные пути
-    user_id = str(current_user.id)
-    filename = file_path.name
-    folder = file_path.parent.name if str(file_path.parent.name) != user_id else None
-    
-    # Определяем исходную и целевую директории
-    source_dir = PRIVATE_DIR if not file.is_public else PUBLIC_DIR
-    target_dir = PUBLIC_DIR if new_status else PRIVATE_DIR
-    
-    # Создаем пути к файлам
-    user_target_dir = Path(target_dir) / user_id
-    user_target_dir.mkdir(exist_ok=True)
-    
-    if folder:
-        folder_path = user_target_dir / folder
-        folder_path.mkdir(exist_ok=True)
-        target_path = folder_path / filename
-    else:
-        target_path = user_target_dir / filename
-    
-    # Перемещаем файл в нужную директорию
-    if file_path.exists():
-        # Копируем файл
-        shutil.copy2(file_path, target_path)
-        # Удаляем исходный файл
-        file_path.unlink()
-    
-    # Если файл становится публичным, создаем публичную ссылку
+    # Обновляем URL и публичную ссылку
     if new_status:
-        # Ссылка на публичный файл
-        file.file_path = str(target_path)
-        file.file_url = f"/public/{user_id}/{filename if not folder else folder + '/' + filename}"
-        file.public_url = file.file_url  # Для публичных файлов URL совпадает
+        # Файл стал публичным
+        file.file_url = f"/public/{file_id}"
+        file.public_url = file.file_url
     else:
-        # Ссылка на приватный файл
-        file.file_path = str(target_path)
-        file.file_url = f"/files/{user_id}/{filename if not folder else folder + '/' + filename}"
-        file.public_url = None  # Удаляем публичную ссылку
+        # Файл стал приватным
+        file.file_url = f"/files/{file_id}"
+        file.public_url = None
     
     # Обновляем статус в БД
     file.is_public = new_status
