@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode, useContext } from 'react';
 import api from '../utils/api';
 
 interface User {
@@ -13,6 +13,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
+  token: string | null;
   login: (data: any) => Promise<void>;
   logout: () => void;
 }
@@ -21,9 +22,13 @@ export const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   loading: true,
+  token: null,
   login: async () => {},
   logout: () => {},
 });
+
+// Hook to use the auth context
+export const useAuth = () => useContext(AuthContext);
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -32,6 +37,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 
   useEffect(() => {
     // Check if user is logged in on initial load
@@ -67,6 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // Сохраняем токен в локальном хранилище
         localStorage.setItem('token', data.access_token);
+        setToken(data.access_token);
         
         // Устанавливаем токен для API
         api.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`;
@@ -82,6 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // Сохраняем токен в локальном хранилище
       localStorage.setItem('token', access_token);
+      setToken(access_token);
       
       // Устанавливаем токен для API
       api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
@@ -99,6 +107,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('token');
     
     // Token will be automatically handled by the API utility
+    setToken(null);
     
     // Clear user state
     setUser(null);
@@ -110,6 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         isAuthenticated: !!user,
         loading,
+        token,
         login,
         logout,
       }}

@@ -15,6 +15,7 @@ interface UploadStatus {
 const UploadPage: React.FC = () => {
   const [uploads, setUploads] = useState<UploadStatus[]>([]);
   const [folder, setFolder] = useState<string>('');
+  const [isPublic, setIsPublic] = useState<boolean>(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     // Add files to upload queue with initial status
@@ -32,7 +33,7 @@ const UploadPage: React.FC = () => {
     acceptedFiles.forEach((file, index) => {
       uploadFile(file, newUploads[index].id);
     });
-  }, [folder]);
+  }, [folder, isPublic]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -46,6 +47,9 @@ const UploadPage: React.FC = () => {
     if (folder.trim()) {
       formData.append('folder', folder.trim());
     }
+    
+    // Add the privacy setting
+    formData.append('is_public', isPublic.toString());
     
     try {
       const response = await api.post('/api/files/upload', formData, {
@@ -117,22 +121,40 @@ const UploadPage: React.FC = () => {
 
       {/* Folder selection */}
       <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
-        <label htmlFor="folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-          Папка (необязательно)
-        </label>
-        <div className="mt-1">
+        <div className="mb-4">
+          <label htmlFor="folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Папка (опционально)
+          </label>
           <input
-            type="text"
             id="folder"
-            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 sm:text-sm"
-            placeholder="Введите имя папки"
+            type="text"
+            className="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 dark:bg-[#1e1e1e] dark:text-white"
+            placeholder="Название папки"
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
           />
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Оставьте пустым для загрузки в корневую директорию
+          </p>
         </div>
-        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Оставьте пустым, чтобы загрузить в корневую директорию
-        </p>
+
+        <div className="mb-4">
+          <div className="flex items-center">
+            <input
+              id="is-public"
+              type="checkbox"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded dark:border-gray-700 dark:bg-gray-800"
+            />
+            <label htmlFor="is-public" className="ml-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Сделать файл публичным
+            </label>
+          </div>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Публичные файлы доступны по специальной ссылке без авторизации
+          </p>
+        </div>
       </div>
 
       {/* File upload dropzone */}

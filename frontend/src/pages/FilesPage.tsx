@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { API_BASE_URL } from '../utils/constants';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   DocumentIcon, 
   PhotoIcon, 
@@ -9,16 +10,20 @@ import {
   DocumentTextIcon,
   TrashIcon,
   ArrowDownTrayIcon,
-  LinkIcon
+  LinkIcon,
+  LockClosedIcon,
+  GlobeAltIcon
 } from '@heroicons/react/24/outline';
 
 interface File {
-  id: number;
+  id: string;
   filename: string;
-  file_size: number;
   file_url: string;
-  folder: string | null;
+  public_url?: string;
+  file_size: number;
+  is_public: boolean;
   created_at: string;
+  folder?: string;
 }
 
 const FilesPage: React.FC = () => {
@@ -26,7 +31,10 @@ const FilesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [folderList, setFolderList] = useState<string[]>([]);
-  const [copySuccess, setCopySuccess] = useState<number | null>(null);
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { token } = useAuth();
 
   useEffect(() => {
     fetchFiles();
@@ -52,18 +60,60 @@ const FilesPage: React.FC = () => {
     }
   };
 
-  const deleteFile = async (id: number) => {
-    if (window.confirm('Вы уверены, что хотите удалить этот файл?')) {
-      try {
-        await api.delete(`/files/${id}`);
-        setFiles(files.filter(file => file.id !== id));
-      } catch (error) {
-        console.error('Error deleting file:', error);
+  const deleteFile = async (fileId: string) => {
+    if (!confirm('Вы уверены, что хотите удалить этот файл?')) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/files/${fileId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        // Обновляем список файлов после удаления
+        fetchFiles();
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Ошибка при удалении файла');
       }
+    } catch (err) {
+      setError('Ошибка сети при удалении файла');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const copyLinkToClipboard = (id: number, url: string) => {
+  const toggleFilePrivacy = async (fileId: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/files/${fileId}/toggle-privacy`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        // Обновляем список файлов после изменения статуса
+        fetchFiles();
+      } else {
+        const data = await response.json();
+        setError(data.detail || 'Ошибка при изменении статуса файла');
+      }
+    } catch (err) {
+      setError('Ошибка сети при изменении статуса файла');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyLinkToClipboard = (id: string, url: string) => {
     const fullUrl = `${API_BASE_URL}${url}`;
     navigator.clipboard.writeText(fullUrl);
     setCopySuccess(id);
@@ -203,6 +253,17 @@ const FilesPage: React.FC = () => {
                       >
                         <ArrowDownTrayIcon className="w-5 h-5" />
                       </a>
+                      <button
+                        onClick={() => toggleFilePrivacy(file.id)}
+                        className={`p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300`}
+                        title={file.is_public ? "Сделать личным" : "Сделать публичным"}
+                      >
+                        {file.is_public ? (
+                          <LockClosedIcon className="w-5 h-5" />
+                        ) : (
+                          <GlobeAltIcon className="w-5 h-5" />
+                        )}
+                      </button>
                       <button
                         onClick={() => deleteFile(file.id)}
                         className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-500 dark:hover:text-red-400"

@@ -68,7 +68,7 @@ class AuthCodeResponse(BaseModel):
 
 class AuthCodeCheck(BaseModel):
     authenticated: bool
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
     access_token: Optional[str] = None
     token_type: Optional[str] = None
 
