@@ -1,19 +1,23 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Union
 import datetime
+import uuid
 
 class FileBase(BaseModel):
     filename: str
     folder: Optional[str] = None
+    is_public: Optional[bool] = False
 
 class FileCreate(FileBase):
     pass
 
 class File(FileBase):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     file_url: str
+    public_url: Optional[str] = None
     file_size: int
+    is_public: bool
     created_at: datetime.datetime
 
     class Config:
@@ -29,7 +33,7 @@ class UserCreate(UserBase):
     pass
 
 class User(UserBase):
-    id: int
+    id: str
     created_at: datetime.datetime
 
     class Config:
@@ -69,7 +73,7 @@ class AuthCodeCheck(BaseModel):
     token_type: Optional[str] = None
 
 class TokenData(BaseModel):
-    user_id: Optional[int] = None
+    user_id: Optional[str] = None
 
 class StorageInfo(BaseModel):
     used: int = Field(..., description="Used storage in bytes")

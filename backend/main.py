@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Request
 import logging
 import datetime
+from starlette.responses import RedirectResponse
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ from pathlib import Path
 from database import SessionLocal, engine, Base
 import models
 import schemas
+import uuid
 from auth import get_current_user, create_access_token, verify_telegram_auth
 
 # Create all tables
@@ -59,6 +61,19 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Mount uploads directory for static file serving
 app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
+
+# Configure public access route (for public files)
+@app.get("/public/{public_url_id}/{filename}")
+def get_public_file(public_url_id: str, filename: str, db: Session = Depends(get_db)):
+    """Access a public file via its public URL"""
+    public_url = f"/public/{public_url_id}/{filename}"
+    file = models.get_file_by_public_url(db, public_url=public_url)
+    
+    if not file or not file.is_public:
+        raise HTTPException(status_code=404, detail="File not found or not public")
+    
+    # Redirect to the actual file location
+    return RedirectResponse(url=file.file_url)
 
 @app.get("/")
 def read_root():
@@ -244,7 +259,7 @@ def list_files(
 
 @app.get("/files/{file_id}", response_model=schemas.File)
 def get_file_info(
-    file_id: int,
+    file_id: str,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -258,6 +273,7 @@ def get_file_info(
 async def upload_file(
     file: UploadFile = File(...),
     folder: Optional[str] = Form(None),
+    is_public: bool = Form(False),
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -301,21 +317,29 @@ async def upload_file(
     
     # Create file record in database
     file_url = f"/files/{current_user.id}/{folder + '/' if folder else ''}{unique_filename}"
+    
+    # Generate a public URL if the file is public
+    public_url = None
+    if is_public:
+        public_url = f"/public/{uuid.uuid4()}/{original_filename}"
+    
     db_file = models.create_file(
         db=db,
         user_id=current_user.id,
         filename=original_filename,
         file_path=str(file_path),
         file_url=file_url,
+        public_url=public_url,
         file_size=file_size,
-        folder=folder
+        folder=folder,
+        is_public=is_public
     )
     
     return db_file
 
 @app.delete("/files/{file_id}", response_model=schemas.Message)
 def delete_file(
-    file_id: int,
+    file_id: str,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -335,6 +359,34 @@ def delete_file(
     models.delete_file(db, file_id=file_id)
     
     return {"message": "File deleted successfully"}
+
+@app.put("/files/{file_id}/toggle-privacy", response_model=schemas.File)
+def toggle_file_privacy(
+    file_id: str,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle a file's public/private status"""
+    file = models.get_file(db, file_id=file_id)
+    if not file or file.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Toggle status
+    new_status = not file.is_public
+    
+    # If becoming public, generate a public URL
+    public_url = None
+    if new_status:
+        public_url = f"/public/{uuid.uuid4()}/{file.filename}"
+    
+    updated_file = models.set_file_public_status(
+        db=db, 
+        file_id=file_id, 
+        is_public=new_status,
+        public_url=public_url
+    )
+    
+    return updated_file
 
 @app.get("/storage/usage", response_model=schemas.StorageInfo)
 def get_storage_usage(
