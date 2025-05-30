@@ -110,12 +110,32 @@ const FilesPage: React.FC = () => {
     }
   };
 
-  const copyLinkToClipboard = (fileId: string, fileUrl: string | null | undefined) => {
-    if (!fileUrl) return;
-    const fullUrl = `${window.location.origin}${API_BASE_URL}${fileUrl}`;
-    navigator.clipboard.writeText(fullUrl);
-    setCopySuccess(fileId);
-    setTimeout(() => setCopySuccess(''), 2000);
+  // Функция для копирования ссылки в буфер обмена
+  const copyLinkToClipboard = (fileId: string, url: string | null | undefined) => {
+    // Проверяем есть ли URL
+    if (!url) {
+      alert('Невозможно скопировать ссылку: URL не найден');
+      return;
+    }
+    
+    // Формируем полный URL для публичных файлов
+    // Для приватных предупреждаем, что нужна авторизация
+    if (url.startsWith('/public/')) {
+      const fullUrl = `${window.location.origin}${API_BASE_URL}${url}`;
+      
+      navigator.clipboard.writeText(fullUrl)
+        .then(() => {
+          setCopySuccess(fileId);
+          setTimeout(() => setCopySuccess(null), 2000);
+        })
+        .catch(err => {
+          console.error('Ошибка при копировании ссылки:', err);
+          alert('Не удалось скопировать ссылку');
+        });
+    } else {
+      // Для приватных файлов предупреждаем пользователя
+      alert('Это приватный файл. Прямая ссылка требует авторизацию через Bearer токен. Используйте кнопку скачивания.');
+    }
   };
   
   // Функция для скачивания файлов с авторизацией
@@ -125,9 +145,12 @@ const FilesPage: React.FC = () => {
         // Для публичных файлов открываем прямую ссылку
         window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
       } else {
-        // Для приватных файлов делаем запрос с токеном через API
+        // Для приватных файлов всегда используем API с авторизацией
         const response = await api.get(`/api/files/download/${file.id}`, {
           responseType: 'blob',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
         
         // Создаем URL-объект для скачивания
