@@ -90,24 +90,15 @@ const FilesPage: React.FC = () => {
   const toggleFilePrivacy = async (fileId: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/files/${fileId}/toggle-privacy`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        // Обновляем список файлов после изменения статуса
-        fetchFiles();
-      } else {
-        const data = await response.json();
-        setError(data.detail || 'Ошибка при изменении статуса файла');
-      }
-    } catch (err) {
-      setError('Ошибка сети при изменении статуса файла');
-      console.error(err);
+      const response = await api.put(`/files/${fileId}/toggle-privacy`);
+      // Axios возвращает данные напрямую в response.data
+      
+      // Успешный ответ, обновляем список файлов
+      fetchFiles();
+    } catch (error: any) {
+      // Обрабатываем ошибку axios
+      console.error('Error toggling privacy:', error);
+      setError(error.response?.data?.detail || 'Ошибка при изменении статуса приватности');
     } finally {
       setIsLoading(false);
     }

@@ -3,7 +3,7 @@ import { API_BASE_URL } from './constants';
 
 // Настраиваем базовый URL для всех API запросов
 // Используем константу из constants.ts
-const baseURL = import.meta.env.VITE_API_BASE_URL || '';
+const baseURL = API_BASE_URL;
 
 const api = axios.create({
   baseURL,

@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, ReactNode, useContext } from
 import api from '../utils/api';
 
 interface User {
-  id: number;
+  id: string; // Изменено с number на string для поддержки UUID
   telegram_id: number;
   username?: string;
   first_name?: string;
