@@ -1,13 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Request
 import logging
 import datetime
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, FileResponse
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import os
 from typing import List, Optional
@@ -63,21 +62,34 @@ MAX_USER_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Mount uploads directory for static file serving
-app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
+# Используем собственные эндпоинты вместо StaticFiles для контроля доступа к файлам
+# Публичные файлы будут доступны всем, приватные - только авторизованным пользователям
+
+# Новые эндпоинты для доступа к файлам
+@app.get("/files/{file_id}/{filename}")
+async def get_private_file(file_id: str, filename: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Access a private file - requires authentication and ownership"""
+    # Проверяем, что файл существует и принадлежит пользователю
+    file = models.get_file(db, file_id=file_id)
+    
+    if not file or file.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
+    
+    # Возвращаем файл с диска
+    return FileResponse(file.file_path)
 
 # Configure public access route (for public files)
 @app.get("/public/{public_url_id}/{filename}")
-def get_public_file(public_url_id: str, filename: str, db: Session = Depends(get_db)):
-    """Access a public file via its public URL"""
+async def get_public_file(public_url_id: str, filename: str, db: Session = Depends(get_db)):
+    """Access a public file via its public URL - no authentication required"""
     public_url = f"/public/{public_url_id}/{filename}"
     file = models.get_file_by_public_url(db, public_url=public_url)
     
     if not file or not file.is_public:
         raise HTTPException(status_code=404, detail="File not found or not public")
     
-    # Redirect to the actual file location
-    return RedirectResponse(url=file.file_url)
+    # Возвращаем файл напрямую с диска
+    return FileResponse(file.file_path)
 
 @app.get("/")
 def read_root():
@@ -282,64 +294,82 @@ async def upload_file(
     db: Session = Depends(get_db)
 ):
     """Upload a new file"""
-    # Check current storage usage
-    current_usage = models.get_user_storage_usage(db, user_id=current_user.id)
-    file_size = 0
-    
-    # Get file size
-    file_content = await file.read()
-    file_size = len(file_content)
-    await file.seek(0)  # Reset file pointer to beginning
-    
-    # Check if this would exceed the user's storage limit
-    if current_usage + file_size > MAX_USER_STORAGE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Upload would exceed your storage limit of {MAX_USER_STORAGE_BYTES/(1024*1024*1024)}GB"
-        )
-    
-    # Generate a unique filename to avoid conflicts
-    original_filename = file.filename
-    file_extension = original_filename.split(".")[-1] if "." in original_filename else ""
-    unique_filename = f"{uuid.uuid4()}.{file_extension}" if file_extension else f"{uuid.uuid4()}"
-    
-    # Create user directory if it doesn't exist
+    # Ensure the user directory exists
     user_dir = Path(UPLOAD_DIR) / str(current_user.id)
     user_dir.mkdir(exist_ok=True)
     
-    # Create folder if specified
+    # Create folder if it doesn't exist
     if folder:
         folder_path = user_dir / folder
         folder_path.mkdir(exist_ok=True)
-        file_path = folder_path / unique_filename
+        save_path = folder_path / file.filename
     else:
-        file_path = user_dir / unique_filename
+        save_path = user_dir / file.filename
     
-    # Save the file
-    with open(file_path, "wb") as f:
-        f.write(file_content)
+    # Check storage usage
+    current_usage = models.get_user_storage_usage(db, user_id=current_user.id)
+    content = await file.read()
+    file_size = len(content)
     
-    # Create file record in database
-    file_url = f"/files/{current_user.id}/{folder + '/' if folder else ''}{unique_filename}"
+    # Check if file size exceeds limit
+    if current_usage + file_size > MAX_USER_STORAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Storage limit reached. Current usage: {current_usage} bytes. File size: {file_size} bytes. Maximum: {MAX_USER_STORAGE_BYTES} bytes."
+        )
     
-    # Generate a public URL if the file is public
+    # Save file to disk
+    try:
+        with open(save_path, "wb") as f:
+            f.write(content)
+    except Exception as e:
+        logger.error(f"Error saving file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not save file"
+        )
+    
+    # Создаем новый ID файла
+    file_id = str(uuid.uuid4())
+    
+    # Формируем новые URL-адреса в соответствии с новой системой доступа к файлам
+    # Приватные файлы доступны через /files/{file_id}/{filename}
+    file_url = f"/files/{file_id}/{file.filename}"
+    
+    # Публичные файлы доступны через /public/{public_id}/{filename}
     public_url = None
     if is_public:
-        public_url = f"/public/{uuid.uuid4()}/{original_filename}"
+        public_id = uuid.uuid4()
+        public_url = f"/public/{public_id}/{file.filename}"
     
-    db_file = models.create_file(
-        db=db,
-        user_id=current_user.id,
-        filename=original_filename,
-        file_path=str(file_path),
-        file_url=file_url,
-        public_url=public_url,
-        file_size=file_size,
-        folder=folder,
-        is_public=is_public
-    )
-    
-    return db_file
+    # Save file info to database
+    try:
+        db_file = models.create_file(
+            db=db, 
+            user_id=current_user.id,
+            filename=file.filename,
+            file_path=str(save_path),
+            file_url=file_url,
+            file_size=file_size,
+            folder=folder,
+            is_public=is_public,
+            public_url=public_url
+        )
+        # Обновляем ID файла, чтобы соответствовать URL
+        db_file.id = file_id
+        db.commit()
+        db.refresh(db_file)
+        
+        return db_file
+    except Exception as e:
+        # Clean up file if database operation fails
+        if save_path.exists():
+            save_path.unlink()
+        logger.error(f"Error creating file record: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not create file record"
+        )
 
 @app.delete("/files/{file_id}", response_model=schemas.Message)
 def delete_file(
