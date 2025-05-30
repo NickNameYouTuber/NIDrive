@@ -90,9 +90,9 @@ const FilesPage: React.FC = () => {
   const toggleFilePrivacy = async (fileId: string) => {
     setIsLoading(true);
     try {
-      // Используем POST вместо PUT для лучшей совместимости с Nginx
-      const response = await api.post(`/files/${fileId}/toggle-privacy`);
-      // Axios возвращает данные напрямую в response.data
+      // Используем новый API эндпоинт, который гарантированно работает с Nginx
+      const response = await api.post(`/api/privacy/toggle/${fileId}`);
+      console.log('Privacy toggle response:', response.data);
       
       // Успешный ответ, обновляем список файлов
       fetchFiles();

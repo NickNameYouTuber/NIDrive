@@ -364,15 +364,29 @@ def delete_file(
     
     return {"message": "File deleted successfully"}
 
-# Два маршрута для переключения приватности: PUT и POST для совместимости с Nginx
+# Маршруты для переключения приватности файлов
 @app.put("/files/{file_id}/toggle-privacy", response_model=schemas.File)
-@app.post("/files/{file_id}/toggle-privacy", response_model=schemas.File)  # Дублируем с POST для совместимости
+@app.post("/files/{file_id}/toggle-privacy", response_model=schemas.File)
 def toggle_file_privacy(
     file_id: str,
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Toggle a file's public/private status"""
+    return toggle_privacy_internal(file_id, current_user, db)
+
+# Дополнительный маршрут, который гарантированно не будет конфликтовать с настройками Nginx
+@app.post("/api/privacy/toggle/{file_id}", response_model=schemas.File)
+def toggle_file_privacy_alternative(
+    file_id: str,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Alternative route to toggle a file's public/private status"""
+    return toggle_privacy_internal(file_id, current_user, db)
+
+# Внутренняя функция для переключения приватности
+def toggle_privacy_internal(file_id: str, current_user: models.User, db: Session):
     file = models.get_file(db, file_id=file_id)
     if not file or file.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="File not found")
