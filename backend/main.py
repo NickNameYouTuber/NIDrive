@@ -85,14 +85,20 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Создаем мидлварь для проверки доступа к файлам
 class FileAccessMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Проверяем только API-запросы, а не файлы
+        # Файлы теперь обрабатываются специальными эндпоинтами
         path = request.url.path
         
-        # Публичные файлы доступны всем
-        if path.startswith("/public/"):
+        # Не проверяем файловые пути, они обрабатываются эндпоинтами
+        if path.startswith("/public/") or path.startswith("/files/") or path == "/":
             return await call_next(request)
         
-        # Приватные файлы требуют авторизации
-        if path.startswith("/files/"):
+        # Проверяем только API-запросы
+        if path.startswith("/api/") and not path.startswith("/api/privacy/toggle/"):
+            # Не проверяем публичные эндпоинты
+            if "login" in path or "register" in path or "auth" in path:
+                return await call_next(request)
+                
             # Получаем токен из заголовка
             auth_header = request.headers.get("Authorization")
             
@@ -117,9 +123,6 @@ class FileAccessMiddleware(BaseHTTPMiddleware):
                         status_code=401,
                         media_type="application/json"
                     )
-                
-                # Здесь мы принимаем любые запросы с валидным токеном
-                # Более детальная проверка прав доступа осуществляется в API-эндпоинтах
             except (jwt.JWTError, jwt.ExpiredSignatureError):
                 return Response(
                     content=json.dumps({"detail": "Invalid authentication credentials"}),
@@ -132,21 +135,47 @@ class FileAccessMiddleware(BaseHTTPMiddleware):
 # Добавляем мидлварь для проверки доступа к файлам
 app.add_middleware(FileAccessMiddleware)
 
-# Монтируем статические файлы для публичного доступа
-app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
+# НЕ монтируем статические файлы напрямую, вместо этого используем кастомные эндпоинты
+
+# Эндпоинт для приватных файлов (требует авторизации)
+@app.get("/files/{user_id}/{file_id}")
+async def get_private_file(user_id: str, file_id: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Access a private file - requires authentication and ownership"""
+    # Проверяем, что пользователь запрашивает свой файл
+    if str(current_user.id) != user_id:
+        raise HTTPException(status_code=403, detail="You don't have permission to access this file")
+        
+    # Ищем файл в базе данных
+    file = models.get_file(db, file_id=file_id)
+    
+    if not file or str(file.user_id) != user_id:
+        raise HTTPException(status_code=404, detail="File not found or access denied")
+    
+    # Проверяем путь к файлу
+    if not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    # Возвращаем файл
+    return FileResponse(file.file_path)
 
 # Создаем эндпоинт для скачивания файлов
 @app.get("/api/files/download/{file_id}")
 async def download_file(file_id: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Download a file - requires authentication for private files"""
+    """Download a file with proper authentication - this is used by the frontend to download files"""
     file = models.get_file(db, file_id=file_id)
     
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
         
+    # Проверяем права доступа
     if file.user_id != current_user.id and not file.is_public:
         raise HTTPException(status_code=403, detail="Access denied - you don't have permission to download this file")
     
+    # Проверяем путь к файлу
+    if not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    # Возвращаем файл с заголовками для скачивания
     return FileResponse(
         path=file.file_path,
         filename=file.filename,
@@ -163,9 +192,14 @@ async def get_public_file(public_url_id: str, filename: str, db: Session = Depen
     if not file or not file.is_public:
         raise HTTPException(status_code=404, detail="File not found or not public")
     
+    # Проверяем путь к файлу
+    if not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
     return FileResponse(
         path=file.file_path,
-        filename=file.filename
+        filename=file.filename,
+        media_type="application/octet-stream"
     )
 
 @app.get("/")
@@ -410,8 +444,8 @@ async def upload_file(
     file_id = str(uuid.uuid4())
     
     # Формируем новые URL-адреса в соответствии с новой системой доступа к файлам
-    # Приватные файлы доступны через /files/{file_id}/{filename}
-    file_url = f"/files/{file_id}/{file.filename}"
+    # Приватные файлы доступны через /files/{user_id}/{file_id}
+    file_url = f"/files/{current_user.id}/{file_id}"
     
     # Публичные файлы доступны через /public/{public_id}/{filename}
     public_url = None
