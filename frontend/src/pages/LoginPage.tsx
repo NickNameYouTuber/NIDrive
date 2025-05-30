@@ -25,7 +25,7 @@ const LoginPage: React.FC = () => {
         await login(response.data);
         setCheckingStatus(false);
         setIsLoading(false);
-        navigate('/');
+        navigate('/dashboard');
       }
     } catch (error) {
       console.error('Ошибка при проверке статуса авторизации:', error);
