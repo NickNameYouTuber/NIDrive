@@ -90,6 +90,10 @@ class FileAccessMiddleware(BaseHTTPMiddleware):
         # Публичные файлы доступны всем
         if path.startswith("/public/"):
             return await call_next(request)
+            
+        # Пути аутентификации и API не требуют проверки доступа
+        if path.startswith("/auth/") or path.startswith("/api/"):
+            return await call_next(request)
         
         # Приватные файлы требуют авторизации
         if path.startswith("/files/"):
