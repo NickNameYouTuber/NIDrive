@@ -33,7 +33,23 @@ const LoginPage: React.FC = () => {
     }
   }, [authCode, login, navigate]);
   
+  // Тестовая функция для проверки доступности бэкенда
+  const testBackendConnection = async () => {
+    try {
+      console.log('Тестирование соединения с бэкендом...');
+      const response = await api.get('/auth/test');
+      console.log('Тест соединения успешен:', response.data);
+      setErrorMessage('Тест соединения успешен: ' + JSON.stringify(response.data));
+    } catch (error) {
+      console.error('Ошибка при тестировании соединения:', error);
+      setErrorMessage('Ошибка при тестировании соединения: ' + JSON.stringify(error));
+    }
+  };
+
   useEffect(() => {
+    // Тестируем соединение с бэкендом при загрузке страницы
+    testBackendConnection();
+    
     // Redirect if already authenticated
     if (isAuthenticated) {
       navigate('/drive');
