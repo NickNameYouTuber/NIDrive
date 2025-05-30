@@ -82,12 +82,18 @@ MAX_USER_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Создаем мидлварь для проверки доступа к файлам - возвращаем к исходной версии
+# Создаем отдельные директории для приватных и публичных файлов
+PRIVATE_DIR = os.path.join(UPLOAD_DIR, "private")
+PUBLIC_DIR = os.path.join(UPLOAD_DIR, "public")
+os.makedirs(PRIVATE_DIR, exist_ok=True)
+os.makedirs(PUBLIC_DIR, exist_ok=True)
+
+# Создаем мидлварь для проверки доступа к файлам
 class FileAccessMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
         
-        # Публичные файлы доступны всем
+        # Публичные файлы доступны всем без авторизации
         if path.startswith("/public/"):
             return await call_next(request)
             
@@ -136,8 +142,9 @@ class FileAccessMiddleware(BaseHTTPMiddleware):
 # Добавляем мидлварь для проверки доступа к файлам
 app.add_middleware(FileAccessMiddleware)
 
-# Возвращаем монтирование статических файлов для совместимости с Nginx
-app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
+# Монтируем отдельно приватные и публичные файлы
+app.mount("/files", StaticFiles(directory=PRIVATE_DIR), name="private_files")
+app.mount("/public", StaticFiles(directory=PUBLIC_DIR), name="public_files")
 
 # Создаем эндпоинт для скачивания файлов
 @app.get("/api/files/download/{file_id}")
@@ -387,11 +394,14 @@ async def upload_file(
     db: Session = Depends(get_db)
 ):
     """Upload a new file"""
-    # Ensure the user directory exists
-    user_dir = Path(UPLOAD_DIR) / str(current_user.id)
+    # Определяем базовую директорию в зависимости от публичности файла
+    base_dir = PUBLIC_DIR if is_public else PRIVATE_DIR
+    
+    # Создаем директорию пользователя
+    user_dir = Path(base_dir) / str(current_user.id)
     user_dir.mkdir(exist_ok=True)
     
-    # Create folder if it doesn't exist
+    # Создаем папку, если она указана
     if folder:
         folder_path = user_dir / folder
         folder_path.mkdir(exist_ok=True)
@@ -421,19 +431,18 @@ async def upload_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not save file"
         )
+    finally:
+        file.file.close()
     
-    # Создаем новый ID файла
-    file_id = str(uuid.uuid4())
-    
-    # Формируем новые URL-адреса в соответствии с новой системой доступа к файлам
-    # Приватные файлы доступны через /files/{user_id}/{file_id}
-    file_url = f"/files/{current_user.id}/{file_id}"
-    
-    # Публичные файлы доступны через /public/{public_id}/{filename}
-    public_url = None
+    # Создаем URL для файла в зависимости от типа (публичный/приватный)
     if is_public:
-        public_id = uuid.uuid4()
-        public_url = f"/public/{public_id}/{file.filename}"
+        # Публичный файл - доступен через /public/
+        file_url = f"/public/{current_user.id}/{file.filename if not folder else folder + '/' + file.filename}"
+        public_url = file_url  # Для публичных файлов URL совпадает
+    else:
+        # Приватный файл - доступен через /files/ с токеном
+        file_url = f"/files/{current_user.id}/{file.filename if not folder else folder + '/' + file.filename}"
+        public_url = None
     
     # Save file info to database
     try:
@@ -449,7 +458,7 @@ async def upload_file(
             public_url=public_url
         )
         # Обновляем ID файла, чтобы соответствовать URL
-        db_file.id = file_id
+        db_file.id = str(uuid.uuid4())
         db.commit()
         db.refresh(db_file)
         
@@ -463,6 +472,70 @@ async def upload_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not create file record"
         )
+
+
+# Внутренняя функция для переключения приватности
+def toggle_privacy_internal(file_id: str, current_user: models.User, db: Session):
+    # Получаем файл из БД
+    file = models.get_file(db, file_id)
+    
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Проверяем права доступа
+    if file.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied - you don't have permission to modify this file")
+    
+    # Переключаем статус приватности
+    new_status = not file.is_public
+    
+    # Получаем путь к файлу
+    file_path = Path(file.file_path)
+    
+    # Определяем нужные пути
+    user_id = str(current_user.id)
+    filename = file_path.name
+    folder = file_path.parent.name if str(file_path.parent.name) != user_id else None
+    
+    # Определяем исходную и целевую директории
+    source_dir = PRIVATE_DIR if not file.is_public else PUBLIC_DIR
+    target_dir = PUBLIC_DIR if new_status else PRIVATE_DIR
+    
+    # Создаем пути к файлам
+    user_target_dir = Path(target_dir) / user_id
+    user_target_dir.mkdir(exist_ok=True)
+    
+    if folder:
+        folder_path = user_target_dir / folder
+        folder_path.mkdir(exist_ok=True)
+        target_path = folder_path / filename
+    else:
+        target_path = user_target_dir / filename
+    
+    # Перемещаем файл в нужную директорию
+    if file_path.exists():
+        # Копируем файл
+        shutil.copy2(file_path, target_path)
+        # Удаляем исходный файл
+        file_path.unlink()
+    
+    # Если файл становится публичным, создаем публичную ссылку
+    if new_status:
+        # Ссылка на публичный файл
+        file.file_path = str(target_path)
+        file.file_url = f"/public/{user_id}/{filename if not folder else folder + '/' + filename}"
+        file.public_url = file.file_url  # Для публичных файлов URL совпадает
+    else:
+        # Ссылка на приватный файл
+        file.file_path = str(target_path)
+        file.file_url = f"/files/{user_id}/{filename if not folder else folder + '/' + filename}"
+        file.public_url = None  # Удаляем публичную ссылку
+    
+    # Обновляем статус в БД
+    file.is_public = new_status
+    db.commit()
+    
+    return file
 
 @app.delete("/files/{file_id}", response_model=schemas.Message)
 def delete_file(
@@ -507,29 +580,6 @@ def toggle_file_privacy_alternative(
 ):
     """Alternative route to toggle a file's public/private status"""
     return toggle_privacy_internal(file_id, current_user, db)
-
-# Внутренняя функция для переключения приватности
-def toggle_privacy_internal(file_id: str, current_user: models.User, db: Session):
-    file = models.get_file(db, file_id=file_id)
-    if not file or file.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    # Toggle status
-    new_status = not file.is_public
-    
-    # If becoming public, generate a public URL
-    public_url = None
-    if new_status:
-        public_url = f"/public/{uuid.uuid4()}/{file.filename}"
-    
-    updated_file = models.set_file_public_status(
-        db=db, 
-        file_id=file_id, 
-        is_public=new_status,
-        public_url=public_url
-    )
-    
-    return updated_file
 
 @app.get("/storage/usage", response_model=schemas.StorageInfo)
 def get_storage_usage(
