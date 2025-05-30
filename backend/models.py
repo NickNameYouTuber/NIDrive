@@ -14,7 +14,7 @@ class User(Base):
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     files = relationship("File", back_populates="owner", cascade="all, delete-orphan")
 
@@ -31,7 +31,7 @@ class File(Base):
     file_size = Column(BigInteger)  # Size in bytes
     folder = Column(String, nullable=True)
     is_public = Column(Boolean, default=False)  # Флаг публичного/личного файла
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     owner = relationship("User", back_populates="files")
 
@@ -42,7 +42,7 @@ class AuthCode(Base):
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String, unique=True, index=True)
     telegram_id = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime)
     is_used = Column(Integer, default=0)  # 0 = unused, 1 = used
 
@@ -127,7 +127,7 @@ def set_file_public_status(db: Session, file_id: str, is_public: bool, public_ur
 def create_auth_code(db: Session, code: str) -> AuthCode:
     """Create a new authorization code"""
     # Expires in 15 minutes
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=15)
+    expires_at = datetime.utcnow() + timedelta(minutes=15)
     db_code = AuthCode(
         code=code,
         expires_at=expires_at
@@ -146,7 +146,7 @@ def get_auth_code(db: Session, code: str) -> Optional[AuthCode]:
 def assign_telegram_user_to_code(db: Session, code: str, telegram_id: int) -> Optional[AuthCode]:
     """Assign a Telegram user ID to an auth code"""
     db_code = get_auth_code(db, code)
-    if db_code and db_code.expires_at > datetime.datetime.utcnow():
+    if db_code and db_code.expires_at > datetime.utcnow():
         db_code.telegram_id = telegram_id
         db.commit()
         db.refresh(db_code)
@@ -157,9 +157,10 @@ def assign_telegram_user_to_code(db: Session, code: str, telegram_id: int) -> Op
 def mark_code_as_used(db: Session, code: str) -> Optional[AuthCode]:
     """Mark an auth code as used"""
     db_code = get_auth_code(db, code)
-    if db_code and not db_code.is_used and db_code.expires_at > datetime.datetime.utcnow():
+    if db_code and not db_code.is_used and db_code.expires_at > datetime.utcnow():
         db_code.is_used = 1
         db.commit()
         db.refresh(db_code)
         return db_code
     return None
+

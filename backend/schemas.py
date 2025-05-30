@@ -55,8 +55,8 @@ class Token(BaseModel):
 class AuthCode(BaseModel):
     code: str
     telegram_id: Optional[int] = None
-    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
-    expires_at: datetime.datetime = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime = None
     is_used: bool = False
 
 class AuthCodeCreate(BaseModel):
@@ -82,3 +82,4 @@ class StorageInfo(BaseModel):
 
 class Message(BaseModel):
     message: str
+
