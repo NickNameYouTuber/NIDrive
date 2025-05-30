@@ -18,7 +18,7 @@ class File(FileBase):
     public_url: Optional[str] = None
     file_size: int
     is_public: bool
-    created_at: datetime.datetime
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -34,7 +34,7 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: str
-    created_at: datetime.datetime
+    created_at: datetime
 
     class Config:
         from_attributes = True
@@ -82,4 +82,5 @@ class StorageInfo(BaseModel):
 
 class Message(BaseModel):
     message: str
+
 
