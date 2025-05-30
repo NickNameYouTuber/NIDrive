@@ -155,7 +155,7 @@ def check_auth_code(code: str, db: Session = Depends(get_db)):
         
         return {
             "authenticated": True,
-            "user_id": user.id,
+            "user_id": str(user.id),  # Явно преобразуем UUID в строку
             "access_token": access_token,
             "token_type": "bearer"
         }
