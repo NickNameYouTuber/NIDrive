@@ -108,6 +108,21 @@ def get_user_storage_usage(db: Session, user_id: str) -> int:
     return result or 0
 
 
+def set_file_public_status(db: Session, file_id: str, is_public: bool, public_url: Optional[str] = None) -> File:
+    """Set the public status of a file and optionally update its public URL"""
+    db_file = db.query(File).filter(File.id == file_id).first()
+    if db_file:
+        db_file.is_public = is_public
+        if is_public and public_url:
+            db_file.public_url = public_url
+        elif not is_public:
+            db_file.public_url = None
+            
+        db.commit()
+        db.refresh(db_file)
+    return db_file
+
+
 # Auth code functions
 def create_auth_code(db: Session, code: str) -> AuthCode:
     """Create a new authorization code"""
