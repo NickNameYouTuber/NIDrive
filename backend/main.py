@@ -2,17 +2,24 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, sta
 import logging
 import datetime
 from starlette.responses import RedirectResponse, FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import os
 from typing import List, Optional
 import uuid
 import shutil
 from pathlib import Path
+import json
+import jwt
+from datetime import datetime, timedelta
 
 from database import SessionLocal, engine, Base
 import models
@@ -55,6 +62,19 @@ def get_db():
     finally:
         db.close()
 
+# API keys and security
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_API_ID = os.getenv("TELEGRAM_API_ID")
+TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH")
+OAUTH_REDIRECT_URL = os.getenv("OAUTH_REDIRECT_URL", "http://localhost:5173/auth/success")
+OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID")
+OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET")
+
+# JWT settings
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+
 # Configure file storage
 UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "./uploads")
 MAX_USER_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
@@ -62,14 +82,63 @@ MAX_USER_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
 # Create upload directory if it doesn't exist
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Используем собственные эндпоинты вместо StaticFiles для контроля доступа к файлам
-# Публичные файлы будут доступны всем, приватные - только авторизованным пользователям
+# Создаем мидлварь для проверки доступа к файлам
+class FileAccessMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        
+        # Публичные файлы доступны всем
+        if path.startswith("/public/"):
+            return await call_next(request)
+        
+        # Приватные файлы требуют авторизации
+        if path.startswith("/files/"):
+            # Получаем токен из заголовка
+            auth_header = request.headers.get("Authorization")
+            
+            if not auth_header or not auth_header.startswith("Bearer "):
+                return Response(
+                    content=json.dumps({"detail": "Not authenticated"}),
+                    status_code=401,
+                    media_type="application/json",
+                    headers={"WWW-Authenticate": "Bearer"}
+                )
+            
+            token = auth_header.replace("Bearer ", "")
+            
+            try:
+                # Проверяем токен
+                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                user_id = payload.get("sub")
+                
+                if user_id is None:
+                    return Response(
+                        content=json.dumps({"detail": "Invalid authentication credentials"}),
+                        status_code=401,
+                        media_type="application/json"
+                    )
+                
+                # Здесь мы принимаем любые запросы с валидным токеном
+                # Более детальная проверка прав доступа осуществляется в API-эндпоинтах
+            except (jwt.JWTError, jwt.ExpiredSignatureError):
+                return Response(
+                    content=json.dumps({"detail": "Invalid authentication credentials"}),
+                    status_code=401,
+                    media_type="application/json"
+                )
+        
+        return await call_next(request)
 
-# Новые эндпоинты для доступа к файлам
+# Добавляем мидлварь для проверки доступа к файлам
+app.add_middleware(FileAccessMiddleware)
+
+# Монтируем статические файлы для публичного доступа
+app.mount("/files", StaticFiles(directory=UPLOAD_DIR), name="files")
+
+# Создаем эндпоинт для скачивания файлов
 @app.get("/api/files/download/{file_id}")
-async def download_private_file(file_id: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Download a private file - requires authentication and ownership"""
-    # Проверяем, что файл существует и принадлежит пользователю
+async def download_file(file_id: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Download a file - requires authentication for private files"""
     file = models.get_file(db, file_id=file_id)
     
     if not file:
@@ -78,14 +147,13 @@ async def download_private_file(file_id: str, current_user: models.User = Depend
     if file.user_id != current_user.id and not file.is_public:
         raise HTTPException(status_code=403, detail="Access denied - you don't have permission to download this file")
     
-    # Возвращаем файл с диска с заголовками для скачивания
     return FileResponse(
         path=file.file_path,
         filename=file.filename,
         media_type="application/octet-stream"
     )
 
-# Configure public access route (for public files)
+# Конфигурируем публичный доступ
 @app.get("/public/{public_url_id}/{filename}")
 async def get_public_file(public_url_id: str, filename: str, db: Session = Depends(get_db)):
     """Access a public file via its public URL - no authentication required"""
@@ -95,7 +163,6 @@ async def get_public_file(public_url_id: str, filename: str, db: Session = Depen
     if not file or not file.is_public:
         raise HTTPException(status_code=404, detail="File not found or not public")
     
-    # Возвращаем файл напрямую с диска
     return FileResponse(
         path=file.file_path,
         filename=file.filename

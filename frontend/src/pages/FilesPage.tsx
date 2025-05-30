@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
-import { API_BASE_URL } from '../utils/constants';
-import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   DocumentIcon, 
   PhotoIcon, 
@@ -12,8 +10,15 @@ import {
   ArrowDownTrayIcon,
   LinkIcon,
   LockClosedIcon,
-  GlobeAltIcon
+  GlobeAltIcon,
+  EyeIcon,
+  EyeSlashIcon
 } from '@heroicons/react/24/outline';
+import { Disclosure } from '@headlessui/react';
+import { API_BASE_URL } from '../utils/constants';
+import api from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
+// Используем alert вместо toast
 
 interface File {
   id: string;
@@ -111,6 +116,36 @@ const FilesPage: React.FC = () => {
     navigator.clipboard.writeText(fullUrl);
     setCopySuccess(fileId);
     setTimeout(() => setCopySuccess(''), 2000);
+  };
+  
+  // Функция для скачивания файлов с авторизацией
+  const handleDownload = async (file: any) => {
+    try {
+      if (file.is_public && file.public_url) {
+        // Для публичных файлов открываем прямую ссылку
+        window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
+      } else {
+        // Для приватных файлов делаем запрос с токеном через API
+        const response = await api.get(`/api/files/download/${file.id}`, {
+          responseType: 'blob',
+        });
+        
+        // Создаем URL-объект для скачивания
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', file.filename);
+        document.body.appendChild(link);
+        link.click();
+        
+        // Очищаем URL-объект
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error('Ошибка при скачивании файла:', error);
+      alert('Не удалось скачать файл');
+    }
   };
 
   // Format bytes to human readable format
@@ -238,14 +273,13 @@ const FilesPage: React.FC = () => {
                           <LinkIcon className="w-5 h-5" />
                         )}
                       </button>
-                      <a
-                        href={file.is_public ? `${API_BASE_URL}${file.public_url}` : `${API_BASE_URL}/api/files/download/${file.id}`}
-                        download
+                      <button
+                        onClick={() => handleDownload(file)}
                         className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
                         title="Скачать"
                       >
                         <ArrowDownTrayIcon className="w-5 h-5" />
-                      </a>
+                      </button>
                       <button
                         onClick={() => toggleFilePrivacy(file.id)}
                         className={`p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300`}
