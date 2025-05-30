@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Request
 import logging
-import datetime
+from datetime import datetime, timedelta
 from starlette.responses import RedirectResponse, FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -237,7 +237,7 @@ def check_auth_code(code: str, db: Session = Depends(get_db)):
     db_code = models.get_auth_code(db, code)
     
     # Code not found or expired
-    if not db_code or db_code.expires_at < datetime.datetime.utcnow():
+    if not db_code or db_code.expires_at < datetime.utcnow():
         return {"authenticated": False}
     
     # Code used by a Telegram user
