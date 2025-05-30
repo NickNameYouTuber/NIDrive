@@ -215,10 +215,19 @@ def telegram_login(auth_data: schemas.TelegramAuth, db: Session = Depends(get_db
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+# Простой тестовый эндпоинт для проверки работоспособности
+@app.get("/auth/test")
+def test_auth_endpoint():
+    """Тестовый эндпоинт для проверки работоспособности"""
+    return {"status": "ok", "message": "Auth endpoint is working!"}
+
 # Auth code system for Telegram bot login
 @app.post("/auth/register-code", response_model=schemas.AuthCodeResponse)
 def register_auth_code(code_data: schemas.AuthCodeCreate, db: Session = Depends(get_db)):
     """Register a new authorization code"""
+    # Логируем получение запроса
+    logger.info(f"Received register-code request with code: {code_data.code}")
+    
     # Check if code already exists
     existing_code = models.get_auth_code(db, code_data.code)
     if existing_code:
@@ -227,12 +236,18 @@ def register_auth_code(code_data: schemas.AuthCodeCreate, db: Session = Depends(
             db.delete(existing_code)
             db.commit()
         else:
+            logger.info(f"Code already registered: {code_data.code}")
             return {"code": code_data.code, "message": "Auth code already registered"}
     
     # Create new auth code
-    models.create_auth_code(db, code_data.code)
-    
-    return {"code": code_data.code, "message": "Auth code registered successfully"}
+    try:
+        new_code = models.create_auth_code(db, code_data.code)
+        logger.info(f"Successfully created new auth code: {code_data.code}")
+        return {"code": code_data.code, "message": "Auth code registered successfully"}
+    except Exception as e:
+        logger.error(f"Error creating auth code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating auth code: {str(e)}")
+
 
 
 @app.get("/auth/check-code", response_model=schemas.AuthCodeCheck)
