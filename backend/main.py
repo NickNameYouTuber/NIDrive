@@ -219,7 +219,7 @@ def register_auth_code(code_data: schemas.AuthCodeCreate, db: Session = Depends(
     existing_code = models.get_auth_code(db, code_data.code)
     if existing_code:
         # If code exists but is expired, delete it and create a new one
-        if existing_code.expires_at < datetime.datetime.utcnow():
+        if existing_code.expires_at < datetime.utcnow():
             db.delete(existing_code)
             db.commit()
         else:
@@ -318,7 +318,7 @@ async def process_auth_code(request: Request, db: Session = Depends(get_db)):
     if not db_code:
         raise HTTPException(status_code=400, detail="Auth code not found")
     
-    if db_code.expires_at < datetime.datetime.utcnow():
+    if db_code.expires_at < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Auth code has expired")
     
     if db_code.is_used:

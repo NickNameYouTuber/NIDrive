@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, BigInteger, Text, func, Boolean
 from sqlalchemy.orm import relationship, Session
-import datetime
+from datetime import datetime, timedelta
 import uuid
 from typing import Optional, List
 
