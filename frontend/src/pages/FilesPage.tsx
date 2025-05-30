@@ -105,11 +105,12 @@ const FilesPage: React.FC = () => {
     }
   };
 
-  const copyLinkToClipboard = (id: string, url: string) => {
-    const fullUrl = `${API_BASE_URL}${url}`;
+  const copyLinkToClipboard = (fileId: string, fileUrl: string | null | undefined) => {
+    if (!fileUrl) return;
+    const fullUrl = `${window.location.origin}${API_BASE_URL}${fileUrl}`;
     navigator.clipboard.writeText(fullUrl);
-    setCopySuccess(id);
-    setTimeout(() => setCopySuccess(null), 2000);
+    setCopySuccess(fileId);
+    setTimeout(() => setCopySuccess(''), 2000);
   };
 
   // Format bytes to human readable format
@@ -227,9 +228,9 @@ const FilesPage: React.FC = () => {
                     </div>
                     <div className="flex space-x-2">
                       <button
-                        onClick={() => copyLinkToClipboard(file.id, file.file_url)}
+                        onClick={() => copyLinkToClipboard(file.id, file.is_public ? file.public_url : file.file_url)}
                         className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
-                        title="Копировать ссылку"
+                        title={file.is_public ? "Копировать публичную ссылку" : "Копировать ссылку"}
                       >
                         {copySuccess === file.id ? (
                           <span className="text-xs text-green-600 dark:text-green-400">Скопировано!</span>
@@ -238,7 +239,7 @@ const FilesPage: React.FC = () => {
                         )}
                       </button>
                       <a
-                        href={`${API_BASE_URL}${file.file_url}`}
+                        href={file.is_public ? `${API_BASE_URL}${file.public_url}` : `${API_BASE_URL}/api/files/download/${file.id}`}
                         download
                         className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
                         title="Скачать"

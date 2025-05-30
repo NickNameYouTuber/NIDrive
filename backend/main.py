@@ -66,17 +66,24 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # Публичные файлы будут доступны всем, приватные - только авторизованным пользователям
 
 # Новые эндпоинты для доступа к файлам
-@app.get("/files/{file_id}/{filename}")
-async def get_private_file(file_id: str, filename: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Access a private file - requires authentication and ownership"""
+@app.get("/api/files/download/{file_id}")
+async def download_private_file(file_id: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Download a private file - requires authentication and ownership"""
     # Проверяем, что файл существует и принадлежит пользователю
     file = models.get_file(db, file_id=file_id)
     
-    if not file or file.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="File not found or access denied")
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if file.user_id != current_user.id and not file.is_public:
+        raise HTTPException(status_code=403, detail="Access denied - you don't have permission to download this file")
     
-    # Возвращаем файл с диска
-    return FileResponse(file.file_path)
+    # Возвращаем файл с диска с заголовками для скачивания
+    return FileResponse(
+        path=file.file_path,
+        filename=file.filename,
+        media_type="application/octet-stream"
+    )
 
 # Configure public access route (for public files)
 @app.get("/public/{public_url_id}/{filename}")
@@ -89,7 +96,10 @@ async def get_public_file(public_url_id: str, filename: str, db: Session = Depen
         raise HTTPException(status_code=404, detail="File not found or not public")
     
     # Возвращаем файл напрямую с диска
-    return FileResponse(file.file_path)
+    return FileResponse(
+        path=file.file_path,
+        filename=file.filename
+    )
 
 @app.get("/")
 def read_root():
