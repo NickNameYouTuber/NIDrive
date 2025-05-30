@@ -166,7 +166,7 @@ async def download_file(file_id: str, current_user: models.User = Depends(get_cu
         media_type="application/octet-stream"
     )
 
-# Прямой доступ к файлам
+# Прямой доступ к файлам по ID
 @app.get("/files/{file_id}")
 async def get_private_file(file_id: str, request: Request, db: Session = Depends(get_db)):
     """Доступ к приватному файлу через ID - требует аутентификацию"""
@@ -238,6 +238,89 @@ async def get_public_file(file_id: str, db: Session = Depends(get_db)):
         filename=file.filename,
         media_type="application/octet-stream"
     )
+    
+# Эндпоинты обратной совместимости для старых URL форматов
+@app.get("/public/{user_id}/{filename}")
+async def get_public_file_by_user_and_name(user_id: str, filename: str, db: Session = Depends(get_db)):
+    """Обратная совместимость для старых URL форматов - доступ к публичному файлу по ID пользователя и имени файла"""
+    # Ищем файл по ID пользователя и имени файла
+    files = db.query(models.File).filter(
+        models.File.user_id == user_id,
+        models.File.filename == filename,
+        models.File.is_public == True
+    ).all()
+    
+    if not files:
+        raise HTTPException(status_code=404, detail="File not found or not public")
+    
+    # Используем первый найденный публичный файл
+    file = files[0]
+    
+    # Проверяем существование файла
+    if not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=file.file_path,
+        filename=file.filename,
+        media_type="application/octet-stream"
+    )
+
+@app.get("/files/{user_id}/{filename}")
+async def get_private_file_by_user_and_name(user_id: str, filename: str, request: Request, db: Session = Depends(get_db)):
+    """Обратная совместимость для старых URL форматов - доступ к приватному файлу по ID пользователя и имени файла"""
+    # Получаем токен из заголовка
+    auth_header = request.headers.get("Authorization")
+    
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    token = auth_header.replace("Bearer ", "")
+    
+    try:
+        # Проверяем токен
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        auth_user_id = payload.get("sub")
+        
+        if auth_user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+            
+        # Ищем файл по ID пользователя и имени файла
+        files = db.query(models.File).filter(
+            models.File.user_id == user_id,
+            models.File.filename == filename
+        ).all()
+        
+        if not files:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Используем первый найденный файл
+        file = files[0]
+        
+        # Проверяем права доступа - файл должен принадлежать пользователю или быть публичным
+        if file.user_id != auth_user_id and not file.is_public:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Проверяем существование файла
+        if not os.path.exists(file.file_path):
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        return FileResponse(
+            path=file.file_path,
+            filename=file.filename,
+            media_type="application/octet-stream"
+        )
+        
+    except (jwt.JWTError, jwt.ExpiredSignatureError):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
 
 @app.get("/")
 def read_root():
