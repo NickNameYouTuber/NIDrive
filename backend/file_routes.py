@@ -23,12 +23,25 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 MONGO_DB = os.getenv("MONGO_DB", "nidrive")
 MAX_USER_STORAGE = int(os.getenv("MAX_USER_STORAGE", 5 * 1024 * 1024 * 1024))  # 5GB по умолчанию
 
+# Для отладки
+print(f"MongoDB Connection: URI={MONGO_URI}, DB={MONGO_DB}")
+
 # Создаем сервис хранилища
-storage = StorageService(
-    mongo_uri=MONGO_URI,
-    db_name=MONGO_DB,
-    max_user_storage=MAX_USER_STORAGE
-)
+try:
+    storage = StorageService(
+        mongo_uri=MONGO_URI,
+        db_name=MONGO_DB,
+        max_user_storage=MAX_USER_STORAGE
+    )
+    # Проверяем подключение к MongoDB
+    storage.check_connection()
+    print("MongoDB connection established successfully!")
+except Exception as e:
+    print(f"ERROR: Failed to connect to MongoDB: {str(e)}")
+    # Фаллбэк на временное решение без MongoDB
+    from storage import InMemoryStorageService
+    storage = InMemoryStorageService(max_user_storage=MAX_USER_STORAGE)
+    print("Using in-memory storage as fallback due to MongoDB connection failure")
 
 def get_storage():
     """Зависимость для получения экземпляра хранилища"""
