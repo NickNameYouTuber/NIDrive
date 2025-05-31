@@ -10,10 +10,19 @@ import os
 import io
 import uuid
 
-from database import get_db
+# Удалена зависимость от get_db, так как она не используется в новой системе хранилища файлов
+from database import SessionLocal
 from auth import get_current_user
-from storage import StorageService, FileMetadata, StorageInfo
+from storage import StorageService, FileMetadata, StorageInfo, InMemoryStorageService
 import models
+
+# Добавляем зависимость для получения сессии БД
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Создаем роутер для файловых эндпоинтов
 router = APIRouter()
