@@ -402,10 +402,17 @@ async def download_private_file(
     # Увеличиваем счетчик скачиваний
     models.increment_file_download_count(db, file_id=file_id)
     
+    # Проверяем и обновляем MIME-тип, если он не определен или некорректен
+    mime_type = file.mime_type
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = storage_manager.get_file_mime_type(file.file_path)
+        # Обновляем MIME-тип в базе данных
+        models.update_file(db, file_id=file.id, mime_type=mime_type)
+        
     return FileResponse(
         path=file.file_path,
         filename=file.filename,
-        media_type=file.mime_type or "application/octet-stream"
+        media_type=mime_type
     )
 
 @router.get("/public/{file_id}")
@@ -428,10 +435,17 @@ async def download_public_file(
     # Увеличиваем счетчик скачиваний
     models.increment_file_download_count(db, file_id=file_id)
     
+    # Проверяем и обновляем MIME-тип, если он не определен или некорректен
+    mime_type = file.mime_type
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = storage_manager.get_file_mime_type(file.file_path)
+        # Обновляем MIME-тип в базе данных
+        models.update_file(db, file_id=file.id, mime_type=mime_type)
+        
     return FileResponse(
         path=file.file_path,
         filename=file.filename,
-        media_type=file.mime_type or "application/octet-stream"
+        media_type=mime_type
     )
 
 @router.get("/shared/{access_token}")
@@ -454,10 +468,17 @@ async def download_shared_file(
     # Увеличиваем счетчик скачиваний
     models.increment_file_download_count(db, file_id=file.id)
     
+    # Проверяем и обновляем MIME-тип, если он не определен или некорректен
+    mime_type = file.mime_type
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = storage_manager.get_file_mime_type(file.file_path)
+        # Обновляем MIME-тип в базе данных
+        models.update_file(db, file_id=file.id, mime_type=mime_type)
+        
     return FileResponse(
         path=file.file_path,
         filename=file.filename,
-        media_type=file.mime_type or "application/octet-stream"
+        media_type=mime_type
     )
 
 @router.get("/preview/{file_id}")
@@ -485,9 +506,16 @@ async def preview_file(
     # Увеличиваем счетчик просмотров
     models.increment_file_view_count(db, file_id=file_id)
     
+    # Проверяем и обновляем MIME-тип, если он не определен или некорректен
+    mime_type = file.mime_type
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = storage_manager.get_file_mime_type(file.file_path)
+        # Обновляем MIME-тип в базе данных
+        models.update_file(db, file_id=file_id, mime_type=mime_type)
+        
     return FileResponse(
         path=file.file_path,
-        media_type=file.mime_type or "application/octet-stream"
+        media_type=mime_type
     )
 
 @router.get("/stats/usage", response_model=schemas.StorageInfo)
