@@ -163,6 +163,15 @@ async def upload_file(
         # Генерируем токен доступа для файла
         access_token = generate_access_token() if is_public else None
         
+        # Подготавливаем данные для создания файла в БД
+        
+        # Формируем URL для доступа к файлу до создания в базе
+        urls = get_file_urls(
+            file_id=file_id,
+            access_token=access_token,
+            is_public=is_public
+        )
+        
         # Создаем запись о файле в базе данных
         db_file = models.create_file(
             db=db,
@@ -175,19 +184,10 @@ async def upload_file(
             description=description,
             tags=tags,
             is_public=is_public,
-            access_token=access_token
+            access_token=access_token,
+            private_url=urls["private_url"],
+            public_url=urls["public_url"]
         )
-        
-        # Формируем URL для доступа к файлу
-        urls = get_file_urls(
-            file_id=db_file.id,
-            access_token=db_file.access_token,
-            is_public=db_file.is_public
-        )
-        
-        # Добавляем URL к объекту файла перед возвратом
-        db_file.private_url = urls["private_url"]
-        db_file.public_url = urls["public_url"]
         
         return db_file
     

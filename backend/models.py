@@ -123,8 +123,16 @@ def search_files(db: Session, user_id: str, query: str) -> List[File]:
 def create_file(db: Session, user_id: str, filename: str, file_path: str, 
                 file_size: int, mime_type: Optional[str] = None, folder: Optional[str] = None, 
                 description: Optional[str] = None, tags: Optional[str] = None,
-                is_public: bool = False, access_token: Optional[str] = None) -> File:
+                is_public: bool = False, access_token: Optional[str] = None, 
+                private_url: Optional[str] = None, public_url: Optional[str] = None) -> File:
     """Создать новую запись о файле в базе данных"""
+    # Создаём базовые URL, если они не были предоставлены
+    if not private_url:
+        private_url = f"/api/files/download/{uuid.uuid4()}"
+    
+    if is_public and not public_url:
+        public_url = f"/api/files/public/{uuid.uuid4()}"
+    
     db_file = File(
         user_id=user_id,
         filename=filename,
@@ -135,7 +143,9 @@ def create_file(db: Session, user_id: str, filename: str, file_path: str,
         description=description,
         tags=tags,
         is_public=is_public,
-        access_token=access_token
+        access_token=access_token,
+        private_url=private_url,
+        public_url=public_url
     )
     db.add(db_file)
     db.commit()
