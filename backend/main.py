@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Request
+from typing import Optional
 import logging
 from datetime import datetime, timedelta
 from starlette.responses import RedirectResponse, FileResponse
@@ -83,6 +84,12 @@ from file_routes import router as file_router, get_storage
 
 # Используем новый механизм проверки доступа вместо мидлвари
 
+# Загружаем диагностические маршруты
+from diagnostics import router as diagnostics_router
+
+# Подключаем диагностические маршруты без префикса, чтобы они работали на корневом уровне
+app.include_router(diagnostics_router, tags=["diagnostics"])
+
 # Подключаем маршруты файлового API с префиксом /api для совместимости с фронтендом
 app.include_router(file_router, prefix="/api", tags=["files"])
 
@@ -93,12 +100,28 @@ async def storage_usage(current_user = Depends(get_current_user)):
     from file_routes import get_storage_info
     return await get_storage_info(current_user=current_user, storage_service=next(get_storage()))
 
-# Редирект со старого пути /files на /api/files
+# Редиректы со старых путей на новые API
 @app.get("/files")
 async def files_redirect(current_user = Depends(get_current_user)):
     # Перенаправляем на маршрут /api/files
     from file_routes import list_files
     return await list_files(current_user=current_user, storage_service=next(get_storage()))
+
+# Прямой маршрут для загрузки файлов, минуя префикс /api
+@app.post("/files/upload")
+async def upload_file_direct(file = File(...), folder: Optional[str] = Form(None), 
+                        is_public: bool = Form(False), current_user = Depends(get_current_user)):
+    from file_routes import upload_file
+    return await upload_file(file=file, folder=folder, is_public=is_public, 
+                            current_user=current_user, storage_service=next(get_storage()))
+
+# Еще один маршрут для загрузки файлов
+@app.post("/api/upload")
+async def api_upload_file(file = File(...), folder: Optional[str] = Form(None), 
+                        is_public: bool = Form(False), current_user = Depends(get_current_user)):
+    from file_routes import upload_file
+    return await upload_file(file=file, folder=folder, is_public=is_public, 
+                            current_user=current_user, storage_service=next(get_storage()))
 
 # Все маршруты для файлов перемещены в file_routes.py
 
