@@ -38,6 +38,10 @@ class File(Base):
     is_public = Column(Boolean, default=False)  # Флаг публичного доступа
     access_token = Column(String, nullable=True, index=True)  # Токен для доступа к файлу по ссылке
     
+    # URL для доступа к файлу
+    private_url = Column(String, nullable=False)  # Ссылка для приватного доступа
+    public_url = Column(String, nullable=True)  # Публичная ссылка (если файл публичный)
+    
     # Метрики использования
     download_count = Column(Integer, default=0)  # Счетчик скачиваний
     view_count = Column(Integer, default=0)  # Счетчик просмотров
