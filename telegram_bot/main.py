@@ -45,7 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # Подготавливаем данные пользователя для отправки
             user_data = {
                 "code": auth_code,
-                "telegram_id": user.id,
+                "telegram_id": str(user.id),
                 "username": user.username or "",
                 "first_name": user.first_name or "",
                 "last_name": user.last_name or ""
@@ -94,7 +94,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     # Всегда создаем токен для пользователя, независимо от наличия кода
     user_data = {
-        "id": user.id,
+        "id": str(user.id),
         "first_name": user.first_name,
         "last_name": user.last_name,
         "username": user.username,
@@ -111,21 +111,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 # Store the token in the user's context and in persistent storage
                 token = token_data["access_token"]
                 context.user_data["token"] = token
-                token_storage.set_token(user.id, token)
+                token_storage.set_token(str(user.id), token)
                 response_data = token_data
             else:
                 # В случае ошибки создадим локальный токен для работы с ботом
                 logger.warning(f"Failed to authenticate with API, using local bot authentication")
                 # Создаем симуляцию токена для работы бота
-                token = f"local_bot_token_{user.id}_{int(update.message.date.timestamp())}"
+                token = f"local_bot_token_{str(user.id)}_{int(update.message.date.timestamp())}"
                 context.user_data["token"] = token
-                token_storage.set_token(user.id, token)
+                token_storage.set_token(str(user.id), token)
         except Exception as e:
             logger.error(f"Error parsing response: {e}")
             # Создаем симуляцию токена для работы бота
-            token = f"local_bot_token_{user.id}_{int(update.message.date.timestamp())}"
+            token = f"local_bot_token_{str(user.id)}_{int(update.message.date.timestamp())}"
             context.user_data["token"] = token
-            token_storage.set_token(user.id, token)
+            token_storage.set_token(str(user.id), token)
             
         # Всегда показываем приветственное сообщение, даже если были ошибки
         # Create welcome message with inline keyboard
@@ -150,9 +150,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         logger.error(f"Error authenticating user: {e}")
         # В случае любой ошибки создаем локальный токен
-        token = f"local_bot_token_{user.id}_{int(update.message.date.timestamp())}"
+        token = f"local_bot_token_{str(user.id)}_{int(update.message.date.timestamp())}"
         context.user_data["token"] = token
-        token_storage.set_token(user.id, token)
+        token_storage.set_token(str(user.id), token)
         
         # Все равно показываем приветственное сообщение
         keyboard = [
@@ -197,7 +197,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def list_files(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """List the user's files."""
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     
     # Пытаемся получить токен из локального хранилища, а затем из контекста
     token = token_storage.get_token(user_id) or context.user_data.get("token")
@@ -248,7 +248,7 @@ async def list_files(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def show_folder_files(update: Update, context: ContextTypes.DEFAULT_TYPE, folder: str) -> None:
     """Show files in a specific folder."""
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     
     # Пытаемся получить токен из локального хранилища, а затем из контекста
     token = token_storage.get_token(user_id) or context.user_data.get("token")
@@ -333,9 +333,9 @@ async def show_folder_files(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         logger.error(f"Error showing folder files: {e}")
         await update.callback_query.answer("Произошла ошибка")
 
-async def show_file_details(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: int) -> None:
+async def show_file_details(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str) -> None:
     """Show details and actions for a specific file."""
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     
     # Пытаемся получить токен из локального хранилища, а затем из контекста
     token = token_storage.get_token(user_id) or context.user_data.get("token")
@@ -386,9 +386,9 @@ async def show_file_details(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         logger.error(f"Error showing file details: {e}")
         await update.callback_query.answer("Произошла ошибка")
 
-async def get_file_link(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: int) -> None:
+async def get_file_link(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str) -> None:
     """Get the link to a file."""
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     
     # Пытаемся получить токен из локального хранилища, а затем из контекста
     token = token_storage.get_token(user_id) or context.user_data.get("token")
@@ -431,9 +431,9 @@ async def get_file_link(update: Update, context: ContextTypes.DEFAULT_TYPE, file
         logger.error(f"Error getting file link: {e}")
         await update.callback_query.answer("Произошла ошибка")
 
-async def delete_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: int) -> None:
+async def delete_file(update: Update, context: ContextTypes.DEFAULT_TYPE, file_id: str) -> None:
     """Delete a file."""
-    user_id = update.effective_user.id
+    user_id = str(update.effective_user.id)
     
     # Пытаемся получить токен из локального хранилища, а затем из контекста
     token = token_storage.get_token(user_id) or context.user_data.get("token")

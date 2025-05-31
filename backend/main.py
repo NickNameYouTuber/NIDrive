@@ -401,12 +401,13 @@ def check_auth_code(code: str, db: Session = Depends(get_db)):
         # Generate JWT token
         access_token = create_access_token(data={"sub": str(user.id)})
         
-        return {
-            "authenticated": True,
-            "user_id": str(user.id),  # Явно преобразуем UUID в строку
-            "access_token": access_token,
-            "token_type": "bearer"
-        }
+        # Важно: возвращаем user_id как строку, т.к. в БД он хранится как UUID
+        return schemas.AuthCodeCheck(
+            authenticated=True,
+            user_id=str(user.id),
+            access_token=access_token,
+            token_type="bearer"
+        )
     
     # Code not yet used
     return {"authenticated": False}

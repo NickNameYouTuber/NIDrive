@@ -28,19 +28,19 @@ class TokenStorage:
         with open(TOKEN_FILE, 'w') as f:
             json.dump(self.tokens, f)
     
-    def get_token(self, user_id: int) -> Optional[str]:
+    def get_token(self, user_id: str) -> Optional[str]:
         """Получить токен для пользователя"""
-        return self.tokens.get(str(user_id))
+        return self.tokens.get(user_id)
     
-    def set_token(self, user_id: int, token: str):
+    def set_token(self, user_id: str, token: str):
         """Установить токен для пользователя"""
-        self.tokens[str(user_id)] = token
+        self.tokens[user_id] = token
         self.save_tokens()
     
-    def delete_token(self, user_id: int):
+    def delete_token(self, user_id: str):
         """Удалить токен пользователя"""
-        if str(user_id) in self.tokens:
-            del self.tokens[str(user_id)]
+        if user_id in self.tokens:
+            del self.tokens[user_id]
             self.save_tokens()
 
 # Создаем синглтон для хранилища токенов

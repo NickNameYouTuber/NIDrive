@@ -53,10 +53,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
+        # Явно указываем, что user_id - это строка, представляющая UUID
         token_data = schemas.TokenData(user_id=user_id)
     except JWTError:
         raise credentials_exception
     
+    # Получаем пользователя по UUID, переданному в виде строки
     user = models.get_user(db, user_id=token_data.user_id)
     if user is None:
         raise credentials_exception

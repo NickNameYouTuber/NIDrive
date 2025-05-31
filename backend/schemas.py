@@ -68,7 +68,7 @@ class AuthCodeResponse(BaseModel):
 
 class AuthCodeCheck(BaseModel):
     authenticated: bool
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None  # Поддержка UUID в виде строки
     access_token: Optional[str] = None
     token_type: Optional[str] = None
 

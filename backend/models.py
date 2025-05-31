@@ -10,7 +10,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    telegram_id = Column(BigInteger, unique=True, index=True)
+    telegram_id = Column(String, unique=True, index=True)
     username = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
@@ -41,7 +41,7 @@ class AuthCode(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String, unique=True, index=True)
-    telegram_id = Column(BigInteger, nullable=True)
+    telegram_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime)
     is_used = Column(Integer, default=0)  # 0 = unused, 1 = used
@@ -51,10 +51,10 @@ class AuthCode(Base):
 def get_user(db: Session, user_id: str) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
 
-def get_user_by_telegram_id(db: Session, telegram_id: int) -> Optional[User]:
+def get_user_by_telegram_id(db: Session, telegram_id: str) -> Optional[User]:
     return db.query(User).filter(User.telegram_id == telegram_id).first()
 
-def create_user(db: Session, telegram_id: int, username: Optional[str] = None, 
+def create_user(db: Session, telegram_id: str, username: Optional[str] = None, 
                 first_name: Optional[str] = None, last_name: Optional[str] = None) -> User:
     db_user = User(
         telegram_id=telegram_id,
