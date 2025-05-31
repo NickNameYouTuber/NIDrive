@@ -1,277 +1,331 @@
+"""
+NIDrive Storage Service - специализированная система хранения файлов 
+с поддержкой разделения на приватные и публичные файлы.
+"""
+
 import os
-import shutil
 import uuid
-from typing import Optional, BinaryIO, Tuple
-from pathlib import Path
-import mimetypes
-from datetime import datetime
+import shutil
 import logging
+import gridfs
+from typing import Optional, List, Dict, BinaryIO, Any
+from fastapi import HTTPException, UploadFile
+from pymongo import MongoClient
+from pymongo.database import Database
+from bson.objectid import ObjectId
+from datetime import datetime
+from pydantic import BaseModel, Field
 
+# Настройка логирования
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-class StorageManager:
-    """
-    Система управления хранилищем файлов с разделением на приватные и публичные файлы.
+# Модели данных
+class FileMetadata(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    filename: str
+    user_id: str
+    content_type: str
+    size: int
+    is_public: bool = False
+    folder: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    access_token: Optional[str] = None  # Для доступа к приватным файлам
     
-    Особенности:
-    - Разделение на приватные и публичные хранилища
-    - Уникальные имена файлов на основе UUID
-    - Организация по пользователям и дате загрузки
-    - Встроенная система разграничения доступа
-    """
+    class Config:
+        arbitrary_types_allowed = True
+
+class StorageInfo(BaseModel):
+    used: int
+    total: int
+    percentage: float
     
-    def __init__(self, base_path: str):
-        self.base_path = Path(base_path)
+    @staticmethod
+    def calculate(used_bytes: int, total_bytes: int) -> 'StorageInfo':
+        percentage = (used_bytes / total_bytes) * 100 if total_bytes > 0 else 0
+        return StorageInfo(
+            used=used_bytes,
+            total=total_bytes,
+            percentage=round(percentage, 2)
+        )
+
+class StorageService:
+    """Сервис для управления файловым хранилищем с использованием MongoDB и GridFS"""
+    
+    def __init__(self, mongo_uri: str, db_name: str, max_user_storage: int = 5 * 1024 * 1024 * 1024):
+        """
+        Инициализация хранилища
         
-        # Структура директорий
-        self.private_path = self.base_path / "private"
-        self.public_path = self.base_path / "public"
+        Args:
+            mongo_uri: URI для подключения к MongoDB
+            db_name: Имя базы данных
+            max_user_storage: Максимальный размер хранилища для пользователя (по умолчанию 5GB)
+        """
+        self.client = MongoClient(mongo_uri)
+        self.db = self.client[db_name]
+        self.fs = gridfs.GridFS(self.db)
+        self.max_user_storage = max_user_storage
+        # Коллекция для хранения метаданных файлов
+        self.files_metadata = self.db.files_metadata
         
-        # Создаем базовые директории
-        self.private_path.mkdir(exist_ok=True, parents=True)
-        self.public_path.mkdir(exist_ok=True, parents=True)
-    
-    def _get_user_directory(self, user_id: str, is_public: bool = False) -> Path:
-        """Получить директорию пользователя"""
-        base = self.public_path if is_public else self.private_path
-        user_dir = base / str(user_id)
-        user_dir.mkdir(exist_ok=True, parents=True)
-        return user_dir
-    
-    def _generate_unique_filename(self) -> str:
-        """Создать уникальное имя файла на основе UUID"""
-        return str(uuid.uuid4())
-    
-    def _create_file_subdirectories(self, user_id: str, is_public: bool = False) -> Path:
-        """Создать структуру директорий для хранения файла по дате"""
-        user_dir = self._get_user_directory(user_id, is_public)
-        today = datetime.now()
-        year_month = today.strftime("%Y-%m")
+        # Создаем индексы для быстрого поиска
+        self.files_metadata.create_index("user_id")
+        self.files_metadata.create_index("is_public")
+        self.files_metadata.create_index([("user_id", 1), ("folder", 1)])
         
-        date_dir = user_dir / year_month
-        date_dir.mkdir(exist_ok=True, parents=True)
+    def close(self):
+        """Закрыть соединение с базой данных"""
+        if self.client:
+            self.client.close()
+            
+    def __enter__(self):
+        return self
         
-        return date_dir
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+            
+    def get_user_storage_info(self, user_id: str) -> StorageInfo:
+        """
+        Получить информацию об использовании хранилища пользователем
+        
+        Args:
+            user_id: Идентификатор пользователя
+            
+        Returns:
+            StorageInfo: Информация о хранилище
+        """
+        # Получаем сумму размеров всех файлов пользователя
+        pipeline = [
+            {"$match": {"user_id": user_id}},
+            {"$group": {"_id": None, "total_size": {"$sum": "$size"}}}
+        ]
+        result = list(self.files_metadata.aggregate(pipeline))
+        used = result[0]["total_size"] if result else 0
+        
+        return StorageInfo.calculate(used, self.max_user_storage)
     
-    def save_file(self, user_id: str, file_data: BinaryIO, original_filename: str, 
-                 is_public: bool = False, folder: Optional[str] = None) -> Tuple[str, str, int]:
+    async def save_file(self, 
+                 file: UploadFile, 
+                 user_id: str, 
+                 folder: Optional[str] = None,
+                 is_public: bool = False) -> FileMetadata:
         """
         Сохранить файл в хранилище
         
         Args:
-            user_id: ID пользователя
-            file_data: Данные файла (файловый объект)
-            original_filename: Оригинальное имя файла
-            is_public: Флаг публичного доступа
-            folder: Логическая папка (категория) для группировки файлов
+            file: Загружаемый файл
+            user_id: Идентификатор пользователя
+            folder: Папка для хранения
+            is_public: Является ли файл публичным
             
         Returns:
-            Tuple[str, str, int]: (file_id, file_path, file_size)
+            FileMetadata: Метаданные сохраненного файла
+            
+        Raises:
+            HTTPException: Если превышен лимит хранилища или произошла ошибка
         """
-        try:
-            # Создаем структуру директорий
-            target_dir = self._create_file_subdirectories(user_id, is_public)
-            
-            # Генерируем уникальный ID файла
-            file_id = self._generate_unique_filename()
-            
-            # Определяем расширение файла из оригинального имени
-            _, extension = os.path.splitext(original_filename)
-            
-            # Формируем имя файла с сохранением расширения
-            filename = f"{file_id}{extension}"
-            
-            # Полный путь к файлу
-            file_path = target_dir / filename
-            
-            # Сохраняем файл
-            file_data.seek(0)  # Убедимся, что читаем с начала файла
-            with open(file_path, "wb") as f:
-                shutil.copyfileobj(file_data, f)
-            
-            # Получаем размер файла
-            file_size = file_path.stat().st_size
-            
-            logger.info(f"Файл сохранен: {file_path}, размер: {file_size} байт, public: {is_public}")
-            
-            return file_id, str(file_path), file_size
+        # Проверка доступного места
+        storage_info = self.get_user_storage_info(user_id)
+        content = await file.read()
+        file_size = len(content)
         
+        if storage_info.used + file_size > self.max_user_storage:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Недостаточно места. Использовано: {storage_info.used} байт. Размер файла: {file_size} байт. Максимум: {self.max_user_storage} байт."
+            )
+            
+        try:
+            # Генерируем уникальный токен доступа для приватных файлов
+            access_token = str(uuid.uuid4()) if not is_public else None
+            
+            # Сохраняем файл в GridFS
+            file_id = self.fs.put(content, filename=file.filename, content_type=file.content_type)
+            
+            # Создаем метаданные файла
+            metadata = FileMetadata(
+                id=str(file_id),
+                filename=file.filename,
+                user_id=user_id,
+                content_type=file.content_type or "application/octet-stream",
+                size=file_size,
+                is_public=is_public,
+                folder=folder,
+                access_token=access_token
+            )
+            
+            # Сохраняем метаданные в отдельной коллекции
+            self.files_metadata.insert_one(metadata.dict())
+            
+            return metadata
+            
         except Exception as e:
             logger.error(f"Ошибка при сохранении файла: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Не удалось сохранить файл: {str(e)}")
+        finally:
+            await file.seek(0)  # Сбрасываем позицию в файле на начало для возможного повторного чтения
+    
+    def get_file(self, file_id: str, user_id: Optional[str] = None, access_token: Optional[str] = None) -> tuple:
+        """
+        Получить файл из хранилища
+        
+        Args:
+            file_id: Идентификатор файла
+            user_id: Идентификатор пользователя (для проверки доступа)
+            access_token: Токен доступа для приватных файлов
+            
+        Returns:
+            tuple: (файловый объект, метаданные)
+            
+        Raises:
+            HTTPException: Если файл не найден или доступ запрещен
+        """
+        try:
+            # Получаем метаданные
+            metadata = self.files_metadata.find_one({"id": file_id})
+            
+            if not metadata:
+                raise HTTPException(status_code=404, detail="Файл не найден")
+                
+            # Проверяем права доступа
+            if not metadata["is_public"]:
+                if not user_id and not access_token:
+                    raise HTTPException(status_code=401, detail="Требуется авторизация")
+                
+                if user_id and metadata["user_id"] != user_id:
+                    if not access_token or metadata.get("access_token") != access_token:
+                        raise HTTPException(status_code=403, detail="Доступ запрещен")
+            
+            # Получаем файл из GridFS
+            file_obj = self.fs.get(ObjectId(file_id))
+            
+            # Преобразуем метаданные в модель Pydantic
+            file_metadata = FileMetadata(**metadata)
+            
+            return file_obj, file_metadata
+            
+        except HTTPException:
             raise
-    
-    def get_file_path(self, file_id: str, user_id: str, original_filename: str, 
-                     is_public: bool) -> Optional[str]:
-        """
-        Получить путь к файлу по его ID и параметрам
-        
-        Args:
-            file_id: ID файла
-            user_id: ID пользователя
-            original_filename: Оригинальное имя файла
-            is_public: Флаг публичного доступа
-            
-        Returns:
-            Optional[str]: Путь к файлу или None, если файл не найден
-        """
-        # Определяем базовую директорию (приватную или публичную)
-        base_dir = self.public_path if is_public else self.private_path
-        
-        # Для поиска нам нужно было бы просканировать все возможные поддиректории,
-        # но поскольку у нас есть полный путь в базе данных, этот метод используется
-        # больше для валидации существования файла и проверки соответствия параметрам
-        
-        # Проверяем, есть ли файл в системе
-        for root, _, files in os.walk(base_dir / str(user_id)):
-            for file in files:
-                if file.startswith(file_id):
-                    file_path = Path(root) / file
-                    return str(file_path)
-        
-        return None
-    
-    def delete_file(self, file_path: str) -> bool:
-        """
-        Удалить файл из хранилища
-        
-        Args:
-            file_path: Полный путь к файлу
-            
-        Returns:
-            bool: True, если файл успешно удален, False в противном случае
-        """
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                logger.info(f"Файл удален: {file_path}")
-                return True
-            else:
-                logger.warning(f"Файл не найден при попытке удаления: {file_path}")
-                return False
         except Exception as e:
-            logger.error(f"Ошибка при удалении файла {file_path}: {str(e)}")
-            return False
+            logger.error(f"Ошибка при получении файла {file_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Не удалось получить файл: {str(e)}")
     
-    def move_file(self, file_path: str, user_id: str, is_public: bool) -> Optional[str]:
+    def list_user_files(self, user_id: str, folder: Optional[str] = None) -> List[FileMetadata]:
         """
-        Переместить файл между приватным и публичным хранилищем
+        Получить список файлов пользователя
         
         Args:
-            file_path: Текущий путь к файлу
-            user_id: ID пользователя
-            is_public: Флаг публичного доступа (новое состояние)
+            user_id: Идентификатор пользователя
+            folder: Папка для фильтрации (опционально)
             
         Returns:
-            Optional[str]: Новый путь к файлу или None, если перемещение не удалось
+            List[FileMetadata]: Список метаданных файлов
         """
+        query = {"user_id": user_id}
+        
+        # Если указана папка, фильтруем по ней
+        if folder:
+            query["folder"] = folder
+            
+        results = self.files_metadata.find(query).sort("created_at", -1)
+        
+        # Преобразуем результаты в модели Pydantic
+        return [FileMetadata(**doc) for doc in results]
+    
+    def get_folders(self, user_id: str) -> List[str]:
+        """
+        Получить список папок пользователя
+        
+        Args:
+            user_id: Идентификатор пользователя
+            
+        Returns:
+            List[str]: Список уникальных папок
+        """
+        pipeline = [
+            {"$match": {"user_id": user_id, "folder": {"$ne": None}}},
+            {"$group": {"_id": "$folder"}},
+            {"$sort": {"_id": 1}}
+        ]
+        
+        results = list(self.files_metadata.aggregate(pipeline))
+        return [doc["_id"] for doc in results if doc["_id"]]
+    
+    def delete_file(self, file_id: str, user_id: str) -> bool:
+        """
+        Удалить файл
+        
+        Args:
+            file_id: Идентификатор файла
+            user_id: Идентификатор пользователя
+            
+        Returns:
+            bool: True если файл успешно удален
+            
+        Raises:
+            HTTPException: Если файл не найден или доступ запрещен
+        """
+        # Получаем метаданные
+        metadata = self.files_metadata.find_one({"id": file_id})
+        
+        if not metadata:
+            raise HTTPException(status_code=404, detail="Файл не найден")
+            
+        # Проверяем права доступа - только владелец может удалить файл
+        if metadata["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещен - вы не можете удалить этот файл")
+        
         try:
-            if not os.path.exists(file_path):
-                logger.warning(f"Файл не найден при попытке перемещения: {file_path}")
-                return None
+            # Удаляем файл из GridFS
+            self.fs.delete(ObjectId(file_id))
             
-            # Получаем имя файла из полного пути
-            filename = os.path.basename(file_path)
+            # Удаляем метаданные
+            self.files_metadata.delete_one({"id": file_id})
             
-            # Создаем новую директорию
-            target_dir = self._create_file_subdirectories(user_id, is_public)
-            
-            # Новый путь к файлу
-            new_path = target_dir / filename
-            
-            # Перемещаем файл
-            shutil.move(file_path, new_path)
-            
-            logger.info(f"Файл перемещен: {file_path} -> {new_path}")
-            
-            return str(new_path)
-        
+            return True
         except Exception as e:
-            logger.error(f"Ошибка при перемещении файла {file_path}: {str(e)}")
-            return None
+            logger.error(f"Ошибка при удалении файла {file_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Не удалось удалить файл: {str(e)}")
     
-    def get_file_mime_type(self, file_path: str) -> str:
+    def set_file_privacy(self, file_id: str, user_id: str, is_public: bool) -> FileMetadata:
         """
-        Определить MIME-тип файла
+        Изменить статус приватности файла
         
         Args:
-            file_path: Путь к файлу
+            file_id: Идентификатор файла
+            user_id: Идентификатор пользователя
+            is_public: Новый статус публичности
             
         Returns:
-            str: MIME-тип файла
-        """
-        # Инициализация модуля mimetypes со всеми стандартными типами
-        mimetypes.init()
-        
-        # Добавляем распространенные типы файлов, которые могут быть не распознаны корректно
-        common_types = {
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-            '.gif': 'image/gif',
-            '.bmp': 'image/bmp',
-            '.webp': 'image/webp',
-            '.svg': 'image/svg+xml',
-            '.pdf': 'application/pdf',
-            '.txt': 'text/plain',
-            '.html': 'text/html',
-            '.htm': 'text/html',
-            '.css': 'text/css',
-            '.js': 'application/javascript',
-            '.json': 'application/json',
-            '.xml': 'application/xml',
-            '.zip': 'application/zip',
-            '.doc': 'application/msword',
-            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            '.xls': 'application/vnd.ms-excel',
-            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            '.ppt': 'application/vnd.ms-powerpoint',
-            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            '.mp3': 'audio/mpeg',
-            '.mp4': 'video/mp4',
-            '.avi': 'video/x-msvideo',
-            '.mov': 'video/quicktime',
-            '.mkv': 'video/x-matroska'
-        }
-        
-        # Получаем расширение файла
-        _, ext = os.path.splitext(file_path.lower())
-        
-        # Если расширение в нашем словаре, используем его тип
-        if ext in common_types:
-            return common_types[ext]
-        
-        # Иначе используем стандартное определение типа
-        mime_type, _ = mimetypes.guess_type(file_path)
-        
-        # Если тип не определен, используем тип бинарного потока
-        return mime_type or "application/octet-stream"
-    
-    def get_user_storage_usage(self, user_id: str) -> int:
-        """
-        Получить объем использованного хранилища пользователя в байтах
-        
-        Args:
-            user_id: ID пользователя
+            FileMetadata: Обновленные метаданные
             
-        Returns:
-            int: Объем использованного хранилища в байтах
+        Raises:
+            HTTPException: Если файл не найден или доступ запрещен
         """
-        total_size = 0
+        # Получаем метаданные
+        metadata = self.files_metadata.find_one({"id": file_id})
         
-        # Считаем размер приватных файлов
-        private_dir = self._get_user_directory(user_id, is_public=False)
-        if private_dir.exists():
-            for dirpath, _, filenames in os.walk(private_dir):
-                for f in filenames:
-                    fp = os.path.join(dirpath, f)
-                    total_size += os.path.getsize(fp)
+        if not metadata:
+            raise HTTPException(status_code=404, detail="Файл не найден")
+            
+        # Проверяем права доступа - только владелец может изменять статус
+        if metadata["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Доступ запрещен")
         
-        # Считаем размер публичных файлов
-        public_dir = self._get_user_directory(user_id, is_public=True)
-        if public_dir.exists():
-            for dirpath, _, filenames in os.walk(public_dir):
-                for f in filenames:
-                    fp = os.path.join(dirpath, f)
-                    total_size += os.path.getsize(fp)
-        
-        return total_size
+        try:
+            # Генерируем новый токен доступа только если файл становится приватным
+            access_token = str(uuid.uuid4()) if not is_public else None
+            
+            # Обновляем метаданные
+            self.files_metadata.update_one(
+                {"id": file_id},
+                {"$set": {"is_public": is_public, "access_token": access_token}}
+            )
+            
+            # Получаем обновленные метаданные
+            updated = self.files_metadata.find_one({"id": file_id})
+            
+            return FileMetadata(**updated)
+        except Exception as e:
+            logger.error(f"Ошибка при изменении статуса приватности файла {file_id}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Не удалось изменить статус приватности: {str(e)}")

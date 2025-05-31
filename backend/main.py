@@ -2,117 +2,57 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, sta
 import logging
 from datetime import datetime, timedelta
 from starlette.responses import RedirectResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-import os
-from typing import List, Optional
-import uuid
-import secrets
-from pathlib import Path
-
-from database import SessionLocal, engine, Base, get_db
-import models
-import schemas
-import file_api
-import health_check
-from auth import get_current_user, create_access_token, verify_telegram_auth
-from storage import StorageManager
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+import os
+from typing import List, Optional
+import uuid
+import shutil
+from pathlib import Path
+import json
+import jwt
+from datetime import datetime, timedelta
+
+from database import SessionLocal, engine, Base
+import models
+import schemas
+import uuid
+from auth import get_current_user, create_access_token, verify_telegram_auth
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(
-    title="NIDriveBot API", 
-    description="File storage backend service",
-    # Включаем полные сообщения об ошибках в продакшене для отладки
-    debug=True,
-)
+app = FastAPI(title="NIDriveBot API", description="File storage backend service")
 
 # Configure CORS
 # Обновленные настройки CORS с детальными разрешениями
-# Разрешаем все ориджины для быстрого тестирования
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
-from fastapi.responses import JSONResponse
-import time
-import traceback
-import sys
-
-# Мидлварь для логирования запросов
-class RequestLoggerMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        start_time = time.time()
-        
-        # Логируем входящий запрос
-        logger.info(f"Request: {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
-        
-        # Отлавливаем исключения во время обработки
-        try:
-            response = await call_next(request)
-        except Exception as e:
-            logger.error(f"Exception during request processing: {str(e)}")
-            logger.error(traceback.format_exc())
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Internal server error", "message": str(e)}
-            )
-        
-        # Логируем информацию об ответе
-        process_time = time.time() - start_time
-        logger.info(f"Response: {request.method} {request.url.path} - Status {response.status_code} - Time {process_time:.3f}s")
-        
-        return response
-
-# Добавляем мидлварь для логирования
-app.add_middleware(RequestLoggerMiddleware)
-
-# Добавляем сжатие gzip для больших ответов
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-# Добавляем CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Разрешаем все ориджины для тестирования
+    allow_origins=[
+        "http://localhost:7071", 
+        "http://127.0.0.1:7071",
+        "http://localhost:5173",  # Vite dev server по умолчанию
+        "https://drive.nicorp.tech",  # Продакшен домен
+        "http://drive.nicorp.tech",   # HTTP версия
+        "https://nicorp.tech",         # Основной домен
+        "http://nicorp.tech",
+        "http://backend:7070",         # Docker сервис
+        "http://frontend:7071",        # Docker сервис
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешаем все методы
-    allow_headers=["*"],  # Разрешаем все заголовки
-    expose_headers=["*"],
-    max_age=86400,  # Кэширование на 24 часа
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Явно указываем разрешенные методы
+    allow_headers=["Authorization", "Content-Type"],  # Явно указываем разрешенные заголовки
+    expose_headers=["Content-Type"],
+    max_age=600,  # Кэширование запросов preflight на 10 минут
 )
-
-# Глобальные обработчики исключений
-@app.exception_handler(StarletteHTTPException)
-async def custom_http_exception_handler(request, exc):
-    logger.error(f"HTTP Exception: {exc.detail} (status code: {exc.status_code})")
-    return await http_exception_handler(request, exc)
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc):
-    logger.error(f"Validation Error: {str(exc)}")
-    return await request_validation_exception_handler(request, exc)
-
-@app.exception_handler(Exception)
-async def generic_exception_handler(request, exc):
-    logger.error(f"Unhandled Exception: {str(exc)}\n{traceback.format_exc()}")
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": "Internal server error",
-            "message": str(exc),
-            "type": type(exc).__name__,
-            "traceback": traceback.format_tb(exc.__traceback__) if app.debug else None
-        }
-    )
 
 # Dependency to get DB session
 def get_db():
@@ -135,39 +75,28 @@ SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-# Configure file storage
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "./uploads")
+# Новая конфигурация файлового хранилища
 MAX_USER_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
 
-# Create upload directory if it doesn't exist
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Загрузка маршрутов файлового API
+from file_routes import router as file_router
 
-# Создаем отдельные директории для приватных и публичных файлов
-PRIVATE_DIR = os.path.join(UPLOAD_DIR, "private")
-PUBLIC_DIR = os.path.join(UPLOAD_DIR, "public")
-os.makedirs(PRIVATE_DIR, exist_ok=True)
-os.makedirs(PUBLIC_DIR, exist_ok=True)
+# Используем новый механизм проверки доступа вместо мидлвари
 
-# Добавляем API маршруты
-app.include_router(file_api.router)
-app.include_router(health_check.router)
+# Подключаем маршруты файлового API
+app.include_router(file_router, prefix="", tags=["files"])
 
-# Старые эндпоинты для работы с файлами удалены.
-# Теперь используется новое файловое API с более правильным разделением на приватные/публичные файлы.
+# Все маршруты для файлов перемещены в file_routes.py
 
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """Обработчик для OPTIONS запросов (CORS preflight)"""
-    return {"allowed": True}
+# Все маршруты для публичных файлов перемещены в file_routes.py
+    
+# Все эндпоинты обратной совместимости перемещены в file_routes.py
+
+# Все эндпоинты прямого доступа к файлам пользователя перемещены в file_routes.py
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to NIDriveBot API", "status": "online", "version": "1.0.0"}
-
-@app.get("/users/me", response_model=schemas.User)
-async def read_users_me(current_user: models.User = Depends(get_current_user)):
-    """Получить информацию о текущем пользователе"""
-    return current_user
+    return {"message": "Welcome to NIDriveBot API"}
 
 @app.post("/auth/telegram-login")
 def telegram_login(auth_data: schemas.TelegramAuth, db: Session = Depends(get_db)):
@@ -234,9 +163,7 @@ def check_auth_code(code: str, db: Session = Depends(get_db)):
         if not user:
             # Create new user
             user = models.create_user(db, db_code.telegram_id)
-            # Create user directory
-            user_dir = Path(UPLOAD_DIR) / str(user.id)
-            user_dir.mkdir(exist_ok=True)
+            # Инициализация пользователя в новой системе хранилища будет происходить в file_routes.py
         
         # Mark code as used
         models.mark_code_as_used(db, code)
@@ -341,219 +268,20 @@ def get_current_user_info(current_user: models.User = Depends(get_current_user))
     """Get current user information"""
     return current_user
 
-@app.get("/files", response_model=List[schemas.File])
-def list_files(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """List all files for the current user"""
-    return models.get_user_files(db, user_id=current_user.id)
+# Список файлов пользователя теперь доступен через новые маршруты
 
-@app.get("/files/{file_id}", response_model=schemas.File)
-def get_file_info(
-    file_id: str,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get file information"""
-    file = models.get_file(db, file_id=file_id)
-    if not file or file.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="File not found")
-    return file
+# Информация о файле доступна через новые маршруты
 
-@app.post("/api/files/upload", response_model=schemas.File)
-async def upload_file(
-    file: UploadFile = File(...),
-    folder: Optional[str] = Form(None),
-    is_public: bool = Form(False),
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Upload a new file"""
-    # Определяем базовую директорию в зависимости от публичности файла
-    base_dir = PUBLIC_DIR if is_public else PRIVATE_DIR
-    
-    # Создаем директорию пользователя
-    user_dir = Path(base_dir) / str(current_user.id)
-    user_dir.mkdir(exist_ok=True)
-    
-    # Создаем папку, если она указана
-    if folder:
-        folder_path = user_dir / folder
-        folder_path.mkdir(exist_ok=True)
-        save_path = folder_path / file.filename
-    else:
-        save_path = user_dir / file.filename
-    
-    # Check storage usage
-    current_usage = models.get_user_storage_usage(db, user_id=current_user.id)
-    content = await file.read()
-    file_size = len(content)
-    
-    # Check if file size exceeds limit
-    if current_usage + file_size > MAX_USER_STORAGE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Storage limit reached. Current usage: {current_usage} bytes. File size: {file_size} bytes. Maximum: {MAX_USER_STORAGE_BYTES} bytes."
-        )
-    
-    # Save file to disk
-    try:
-        with open(save_path, "wb") as f:
-            f.write(content)
-    except Exception as e:
-        logger.error(f"Error saving file: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not save file"
-        )
-    finally:
-        file.file.close()
-    
-    # Создаем файловый ID
-    file_id = str(uuid.uuid4())
-    
-    # Создаем URL для файла в зависимости от типа (публичный/приватный)
-    if is_public:
-        # Публичный файл - доступен через /public/{file_id}
-        file_url = f"/public/{file_id}"
-        public_url = file_url  # Для публичных файлов URL совпадает
-    else:
-        # Приватный файл - доступен через /files/{file_id}
-        file_url = f"/files/{file_id}"
-        public_url = None
-    
-    # Save file info to database
-    try:
-        db_file = models.create_file(
-            db=db, 
-            user_id=current_user.id,
-            filename=file.filename,
-            file_path=str(save_path),
-            file_url=file_url,
-            file_size=file_size,
-            folder=folder,
-            is_public=is_public,
-            public_url=public_url
-        )
-        # Задаем ID файла
-        db_file.id = file_id
-        db.commit()
-        db.refresh(db_file)
-        
-        return db_file
-    except Exception as e:
-        # Clean up file if database operation fails
-        if save_path.exists():
-            save_path.unlink()
-        logger.error(f"Error creating file record: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not create file record"
-        )
+# Загрузка файлов реализована в новой системе
 
 
-# Внутренняя функция для переключения приватности
-def toggle_privacy_internal(file_id: str, current_user: models.User, db: Session):
-    # Получаем файл из БД
-    file = models.get_file(db, file_id)
-    
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    # Проверяем права доступа
-    if file.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied - you don't have permission to modify this file")
-    
-    # Переключаем статус приватности
-    new_status = not file.is_public
-    
-    # Обновляем URL и публичную ссылку
-    if new_status:
-        # Файл стал публичным
-        file.file_url = f"/public/{file_id}"
-        file.public_url = file.file_url
-    else:
-        # Файл стал приватным
-        file.file_url = f"/files/{file_id}"
-        file.public_url = None
-    
-    # Обновляем статус в БД
-    file.is_public = new_status
-    db.commit()
-    
-    return file
+# Функция переключения приватности перенесена в новое хранилище
 
-@app.delete("/files/{file_id}", response_model=schemas.Message)
-def delete_file(
-    file_id: str,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Delete a file"""
-    file = models.get_file(db, file_id=file_id)
-    if not file or file.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    # Delete file from filesystem
-    try:
-        os.remove(file.file_path)
-    except Exception as e:
-        # File might not exist, we still want to remove from DB
-        print(f"Error deleting file: {e}")
-    
-    # Delete file from database
-    models.delete_file(db, file_id=file_id)
-    
-    return {"message": "File deleted successfully"}
+# Удаление файла реализовано в новой системе
 
-# Маршруты для переключения приватности файлов
-@app.put("/files/{file_id}/toggle-privacy", response_model=schemas.File)
-@app.post("/files/{file_id}/toggle-privacy", response_model=schemas.File)
-def toggle_file_privacy(
-    file_id: str,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Toggle a file's public/private status"""
-    return toggle_privacy_internal(file_id, current_user, db)
+# Маршруты для управления приватностью файлов перемещены в file_routes.py
 
-# Дополнительный маршрут, который гарантированно не будет конфликтовать с настройками Nginx
-@app.post("/api/privacy/toggle/{file_id}", response_model=schemas.File)
-def toggle_file_privacy_alternative(
-    file_id: str,
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Alternative route to toggle a file's public/private status"""
-    return toggle_privacy_internal(file_id, current_user, db)
-
-@app.get("/storage/usage", response_model=schemas.StorageInfo)
-def get_storage_usage(
-    current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get storage usage information"""
-    try:
-        logger.info(f"Getting storage usage for user {current_user.id}")
-        usage = models.get_user_storage_usage(db, user_id=current_user.id)
-        
-        response = {
-            "used": usage,
-            "total": MAX_USER_STORAGE_BYTES,
-            "percentage": (usage / MAX_USER_STORAGE_BYTES) * 100 if MAX_USER_STORAGE_BYTES > 0 else 0
-        }
-        
-        logger.info(f"Storage usage response: {response}")
-        return response
-    except Exception as e:
-        logger.error(f"Error getting storage usage: {str(e)}")
-        # Вернём заглушку вместо ошибки, чтобы интерфейс не ломался
-        return {
-            "used": 0,
-            "total": MAX_USER_STORAGE_BYTES,
-            "percentage": 0
-        }
+# Информация об использовании хранилища перемещена в file_routes.py
 
 if __name__ == "__main__":
     import uvicorn
