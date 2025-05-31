@@ -12,7 +12,8 @@ import {
   LockClosedIcon,
   GlobeAltIcon,
   EyeIcon,
-  EyeSlashIcon
+  EyeSlashIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 import { Disclosure } from '@headlessui/react';
 import { API_BASE_URL } from '../utils/constants';
@@ -162,12 +163,44 @@ const FilesPage: React.FC = () => {
         link.click();
         
         // Очищаем URL-объект
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(link);
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(link);
+        }, 100);
       }
     } catch (error) {
       console.error('Ошибка при скачивании файла:', error);
       alert('Не удалось скачать файл');
+    }
+  };
+  
+  // Функция для прямого просмотра файла в браузере
+  const handleViewFile = async (file: any) => {
+    try {
+      if (file.is_public && file.public_url) {
+        // Для публичных файлов открываем прямую ссылку
+        window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
+      } else {
+        // Для приватных файлов запрашиваем через API с токеном
+        const response = await api.get(`/api/files/download/${file.id}`, {
+          responseType: 'blob',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        // Создаем URL для просмотра
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        window.open(url, '_blank');
+        
+        // Очищаем URL через некоторое время
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Ошибка при открытии файла:', error);
+      alert('Не удалось открыть файл');
     }
   };
 
@@ -295,6 +328,13 @@ const FilesPage: React.FC = () => {
                         ) : (
                           <LinkIcon className="w-5 h-5" />
                         )}
+                      </button>
+                      <button
+                        onClick={() => handleViewFile(file)}
+                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
+                        title="Просмотреть"
+                      >
+                        <ArrowTopRightOnSquareIcon className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleDownload(file)}

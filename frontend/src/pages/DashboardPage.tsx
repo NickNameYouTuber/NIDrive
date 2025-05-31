@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../hooks/useAuth';
+import { API_BASE_URL } from '../utils/constants';
 import { 
   DocumentIcon, 
   PhotoIcon, 
@@ -24,10 +25,40 @@ interface FileStats {
 }
 
 const DashboardPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [fileStats, setFileStats] = useState<FileStats | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Функция для открытия файла с правильной обработкой авторизации
+  const handleOpenFile = async (file: any) => {
+    try {
+      if (file.is_public && file.public_url) {
+        // Для публичных файлов открываем прямую ссылку
+        window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
+      } else {
+        // Для приватных файлов используем API с токеном
+        const response = await api.get(`/api/files/download/${file.id}`, {
+          responseType: 'blob',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        // Создаем URL-объект для открытия
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        window.open(url, '_blank');
+        
+        // Очищаем URL-объект через некоторое время
+        setTimeout(() => {
+          window.URL.revokeObjectURL(url);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Ошибка при открытии файла:', error);
+      alert('Не удалось открыть файл');
+    }
+  };
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -35,11 +66,19 @@ const DashboardPage: React.FC = () => {
         setLoading(true);
         
         // Fetch storage usage
-        const storageResponse = await api.get('/storage/usage');
+        const storageResponse = await api.get('/storage/usage', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         setStorageInfo(storageResponse.data);
         
         // Fetch files
-        const filesResponse = await api.get('/files');
+        const filesResponse = await api.get('/files', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
         
         // Calculate file stats
         const files = filesResponse.data;
@@ -64,7 +103,7 @@ const DashboardPage: React.FC = () => {
     };
     
     fetchDashboardData();
-  }, []);
+  }, [token]);
 
   // Format bytes to human readable format
   const formatBytes = (bytes: number, decimals = 2) => {
@@ -211,14 +250,12 @@ const DashboardPage: React.FC = () => {
                       {formatBytes(file.file_size)} • {new Date(file.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <a
-                    href={file.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3 py-1 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-[#2e2e2e] rounded-md hover:bg-primary-100 dark:hover:bg-[#3e3e3e]"
+                  <button
+                    onClick={() => handleOpenFile(file)}
+                    className="px-3 py-1 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-[#2e2e2e] rounded-md hover:bg-primary-100 dark:hover:bg-[#3e3e3e] cursor-pointer"
                   >
                     Открыть
-                  </a>
+                  </button>
                 </div>
               </li>
             ))}
