@@ -11,24 +11,17 @@ from typing import Optional, Dict, Any
 
 import models
 import schemas
-from database import SessionLocal
+from database import SessionLocal, get_db
 
 # Settings from environment
 SECRET_KEY = os.environ.get("SECRET_KEY", "YOUR_SECRET_KEY_CHANGE_ME_IN_PRODUCTION")
 ALGORITHM = "HS256"
 # Установка срока действия токена на бесконечно большое значение, чтобы токен никогда не истекал
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "525600")) # 365 дней (60 мин * 24 часа * 365 дней)
+
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()

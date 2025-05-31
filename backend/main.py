@@ -10,7 +10,7 @@ import uuid
 import secrets
 from pathlib import Path
 
-from database import SessionLocal, engine, Base
+from database import SessionLocal, engine, Base, get_db
 import models
 import schemas
 import file_api
