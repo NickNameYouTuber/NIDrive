@@ -28,7 +28,8 @@ def get_db():
 router = APIRouter()
 
 # Получаем URI для MongoDB из переменных окружения
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+# Используем mongodb вместо localhost для работы в Docker
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongodb:27017/")
 MONGO_DB = os.getenv("MONGO_DB", "nidrive")
 MAX_USER_STORAGE = int(os.getenv("MAX_USER_STORAGE", 5 * 1024 * 1024 * 1024))  # 5GB по умолчанию
 

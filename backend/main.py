@@ -86,12 +86,19 @@ from file_routes import router as file_router, get_storage
 # Подключаем маршруты файлового API с префиксом /api для совместимости с фронтендом
 app.include_router(file_router, prefix="/api", tags=["files"])
 
-# Создаем дополнительный маршрут для хранилища
+# Создаем дополнительные маршруты для обратной совместимости
 @app.get("/storage/usage")
 async def storage_usage(current_user = Depends(get_current_user)):
     # Перенаправляем на маршрут /api/storage-info
     from file_routes import get_storage_info
     return await get_storage_info(current_user=current_user, storage_service=next(get_storage()))
+
+# Редирект со старого пути /files на /api/files
+@app.get("/files")
+async def files_redirect(current_user = Depends(get_current_user)):
+    # Перенаправляем на маршрут /api/files
+    from file_routes import list_files
+    return await list_files(current_user=current_user, storage_service=next(get_storage()))
 
 # Все маршруты для файлов перемещены в file_routes.py
 
