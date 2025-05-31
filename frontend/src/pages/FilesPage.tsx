@@ -12,28 +12,15 @@ import {
   LockClosedIcon,
   GlobeAltIcon,
   EyeIcon,
-  EyeSlashIcon,
-  ArrowTopRightOnSquareIcon
+  EyeSlashIcon
 } from '@heroicons/react/24/outline';
-import { Disclosure } from '@headlessui/react';
 import { API_BASE_URL } from '../utils/constants';
-import api from '../utils/api';
+import fileApi from '../utils/fileApi';
 import { useAuth } from '../contexts/AuthContext';
-// Используем alert вместо toast
-
-interface File {
-  id: string;
-  filename: string;
-  file_url: string;
-  public_url?: string;
-  file_size: number;
-  is_public: boolean;
-  created_at: string;
-  folder?: string;
-}
+import { FileMetadata } from '../types/file';
 
 const FilesPage: React.FC = () => {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<FileMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [folderList, setFolderList] = useState<string[]>([]);
@@ -43,24 +30,26 @@ const FilesPage: React.FC = () => {
   const { token } = useAuth();
 
   useEffect(() => {
-    fetchFiles();
-  }, []);
+    if (token) {
+      fetchFiles();
+    }
+  }, [token]);
 
   const fetchFiles = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/files');
-      setFiles(response.data);
+      if (!token) return;
       
-      // Extract unique folders
-      const folders = response.data
-        .map((file: File) => file.folder)
-        .filter((folder: string | null) => folder !== null)
-        .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index);
+      // Используем новый fileApi для получения файлов
+      const files = await fileApi.getFiles(token, currentFolder || undefined);
+      setFiles(files);
       
+      // Получаем список папок
+      const folders = await fileApi.getFolders(token);
       setFolderList(folders);
     } catch (error) {
       console.error('Error fetching files:', error);
+      setError('Ошибка при загрузке списка файлов');
     } finally {
       setLoading(false);
     }
@@ -68,106 +57,111 @@ const FilesPage: React.FC = () => {
 
   const deleteFile = async (fileId: string) => {
     if (!confirm('Вы уверены, что хотите удалить этот файл?')) return;
+    if (!token) return;
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/files/${fileId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        // Обновляем список файлов после удаления
-        fetchFiles();
-      } else {
-        const data = await response.json();
-        setError(data.detail || 'Ошибка при удалении файла');
-      }
+      // Используем новый API для удаления файла
+      await fileApi.deleteFile(token, fileId);
+      // Обновляем список файлов после удаления
+      fetchFiles();
     } catch (err) {
-      setError('Ошибка сети при удалении файла');
+      setError('Ошибка при удалении файла');
       console.error(err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleFilePrivacy = async (fileId: string) => {
+  const toggleFilePrivacy = async (fileId: string, currentPrivacy: boolean) => {
+    if (!token) return;
     setIsLoading(true);
     try {
-      // Используем новый API эндпоинт, который гарантированно работает с Nginx
-      const response = await api.post(`/api/privacy/toggle/${fileId}`);
-      console.log('Privacy toggle response:', response.data);
-      
-      // Успешный ответ, обновляем список файлов
+      // Используем новый API для изменения приватности файла
+      await fileApi.setFilePrivacy(token, fileId, !currentPrivacy);
+      // Обновляем список файлов
       fetchFiles();
     } catch (error: any) {
-      // Обрабатываем ошибку axios
       console.error('Error toggling privacy:', error);
-      setError(error.response?.data?.detail || 'Ошибка при изменении статуса приватности');
+      setError('Ошибка при изменении статуса приватности файла');
     } finally {
       setIsLoading(false);
     }
   };
 
   // Функция для копирования ссылки в буфер обмена
-  const copyLinkToClipboard = (fileId: string, url: string | null | undefined) => {
-    // Проверяем есть ли URL
-    if (!url) {
-      alert('Невозможно скопировать ссылку: URL не найден');
-      return;
-    }
-    
-    // Формируем полный URL для публичных файлов
-    // Для приватных предупреждаем, что нужна авторизация
-    if (url.startsWith('/public/')) {
-      const fullUrl = `${window.location.origin}${API_BASE_URL}${url}`;
-      
-      navigator.clipboard.writeText(fullUrl)
-        .then(() => {
-          setCopySuccess(fileId);
-          setTimeout(() => setCopySuccess(null), 2000);
-        })
-        .catch(err => {
-          console.error('Ошибка при копировании ссылки:', err);
-          alert('Не удалось скопировать ссылку');
-        });
-    } else {
-      // Для приватных файлов предупреждаем пользователя
-      alert('Это приватный файл. Прямая ссылка требует авторизацию через Bearer токен. Используйте кнопку скачивания.');
+  const copyLinkToClipboard = async (file: FileMetadata) => {
+    try {
+      if (!file.is_public) {
+        if (!token) {
+          alert('Требуется авторизация для доступа к приватному файлу');
+          return;
+        }
+        
+        // Для приватных файлов генерируем временный токен доступа
+        const accessResponse = await fileApi.generateFileAccessToken(token, file.id);
+        const accessUrl = `${window.location.origin}${API_BASE_URL}/api/files/access/${file.id}?token=${accessResponse.access_token}`;
+        
+        navigator.clipboard.writeText(accessUrl)
+          .then(() => {
+            setCopySuccess(file.id);
+            setTimeout(() => setCopySuccess(null), 2000);
+            alert('Ссылка скопирована! Доступ по этой ссылке временный и не требует авторизации.');
+          })
+          .catch(err => {
+            console.error('Ошибка при копировании ссылки:', err);
+            alert('Не удалось скопировать ссылку');
+          });
+      } else {
+        // Для публичных файлов формируем прямую ссылку
+        const publicUrl = `${window.location.origin}${API_BASE_URL}/public/${file.id}`;
+        
+        navigator.clipboard.writeText(publicUrl)
+          .then(() => {
+            setCopySuccess(file.id);
+            setTimeout(() => setCopySuccess(null), 2000);
+          })
+          .catch(err => {
+            console.error('Ошибка при копировании ссылки:', err);
+            alert('Не удалось скопировать ссылку');
+          });
+      }
+    } catch (error) {
+      console.error('Ошибка при получении токена доступа:', error);
+      alert('Не удалось создать ссылку для доступа к файлу');
     }
   };
   
   // Функция для скачивания файлов с авторизацией
-  const handleDownload = async (file: any) => {
+  const handleDownload = async (file: FileMetadata) => {
     try {
-      if (file.is_public && file.public_url) {
-        // Для публичных файлов открываем прямую ссылку
-        window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
+      let fileBlob: Blob;
+      
+      if (file.is_public) {
+        // Для публичных файлов используем публичный API
+        fileBlob = await fileApi.downloadPublicFile(file.id);
       } else {
-        // Для приватных файлов всегда используем API с авторизацией
-        const response = await api.get(`/api/files/download/${file.id}`, {
-          responseType: 'blob',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        // Создаем URL-объект для скачивания
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', file.filename);
-        document.body.appendChild(link);
-        link.click();
-        
-        // Очищаем URL-объект
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(link);
-        }, 100);
+        if (!token) {
+          alert('Требуется авторизация для скачивания приватного файла');
+          return;
+        }
+        // Для приватных файлов используем API с авторизацией
+        fileBlob = await fileApi.downloadFile(token, file.id);
       }
+      
+      // Создаем URL-объект для скачивания
+      const url = window.URL.createObjectURL(fileBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', file.filename);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Очищаем URL-объект
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(link);
+      }, 100);
     } catch (error) {
       console.error('Ошибка при скачивании файла:', error);
       alert('Не удалось скачать файл');
@@ -175,39 +169,71 @@ const FilesPage: React.FC = () => {
   };
   
   // Функция для прямого просмотра файла в браузере
-  const handleViewFile = async (file: any) => {
+  const handleViewFile = async (file: FileMetadata) => {
     try {
-      if (file.is_public && file.public_url) {
+      if (file.is_public) {
         // Для публичных файлов открываем прямую ссылку
-        window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
+        window.open(`${API_BASE_URL}/public/${file.id}`, '_blank');
       } else {
-        // Для приватных файлов запрашиваем через API с токеном
-        const response = await api.get(`/api/files/download/${file.id}`, {
-          responseType: 'blob',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        if (!token) {
+          alert('Требуется авторизация для просмотра приватного файла');
+          return;
+        }
         
-        // Создаем URL для просмотра
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        window.open(url, '_blank');
-        
-        // Очищаем URL через некоторое время
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-        }, 1000);
+        try {
+          // Получаем URL для доступа к файлу
+          const fileUrl = await fileApi.openFile(token, file);
+          window.open(fileUrl, '_blank');
+        } catch (error) {
+          // Если openFile не работает, скачиваем файл и создаем временную ссылку
+          const fileBlob = await fileApi.downloadFile(token, file.id);
+          const url = window.URL.createObjectURL(fileBlob);
+          window.open(url, '_blank');
+          
+          // Очищаем URL через некоторое время
+          setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Ошибка при открытии файла:', error);
       alert('Не удалось открыть файл');
     }
   };
+  
+  // Функция для форматирования размера файла
+  const formatFileSize = (size: number): string => {
+    if (size < 1024) return `${size} B`;
+  };
 
-  // Format bytes to human readable format
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
+  // Функция для получения иконки файла на основе имени файла
+  const getFileIcon = (filename: string) => {
+    const extension = filename.split('.').pop()?.toLowerCase();
     
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return <PhotoIcon className="h-8 w-8 text-blue-500" />;
+      case 'mp3':
+      case 'wav':
+      case 'ogg':
+        return <MusicalNoteIcon className="h-8 w-8 text-purple-500" />;
+      case 'mp4':
+      case 'webm':
+      case 'avi':
+      case 'mov':
+        return <FilmIcon className="h-8 w-8 text-red-500" />;
+      case 'pdf':
+        return <DocumentTextIcon className="h-8 w-8 text-red-600" />;
+      default:
+        return <DocumentIcon className="h-8 w-8 text-gray-500" />;
+    }
+  };
+
     const k = 1024;
     const dm = decimals < 0 ? 0 : decimals;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -255,118 +281,171 @@ const FilesPage: React.FC = () => {
       </div>
     );
   }
-
+  
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Файлы</h1>
-      </div>
-
-      {/* Folder navigation */}
-      <div className="flex flex-wrap gap-2 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setCurrentFolder(null)}
-          className={`px-3 py-1 text-sm rounded-md ${
-            currentFolder === null
-              ? 'bg-primary-100 text-primary-700 dark:bg-[#2e2e2e] dark:text-primary-400'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-          }`}
-        >
-          Все файлы
-        </button>
-        
-        {folderList.map(folder => (
+    <div className="container mx-auto p-4">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Мои файлы</h1>
+        <div className="flex space-x-2">
           <button
-            key={folder}
-            onClick={() => setCurrentFolder(folder)}
-            className={`px-3 py-1 text-sm rounded-md ${
-              currentFolder === folder
-                ? 'bg-primary-100 text-primary-700 dark:bg-[#2e2e2e] dark:text-primary-400'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-            }`}
+            onClick={() => window.location.href = '/upload'}
+            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 flex items-center space-x-1"
           >
-            {folder}
+            <span>Загрузить</span>
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* File list */}
-      {filteredFiles.length === 0 ? (
-        <div className="p-8 text-center">
-          <DocumentIcon className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Нет файлов</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {currentFolder === null
-              ? 'У вас пока нет загруженных файлов'
-              : `В папке "${currentFolder}" пока нет файлов`}
-          </p>
+      {/* Folders navigation */}
+      {folderList.length > 0 && (
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold mb-2">Папки</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => {
+                setCurrentFolder(null);
+                fetchFiles();
+              }}
+              className={`px-3 py-1 rounded-md ${!currentFolder ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-gray-100 text-gray-700 border-gray-300'} border`}
+            >
+              Все файлы
+            </button>
+            {folderList.map((folder) => (
+              <button
+                key={folder}
+                onClick={() => {
+                  setCurrentFolder(folder);
+                  fetchFiles();
+                }}
+                className={`px-3 py-1 rounded-md ${currentFolder === folder ? 'bg-primary-100 text-primary-700 border-primary-300' : 'bg-gray-100 text-gray-700 border-gray-300'} border`}
+              >
+                {folder}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+        </div>
+      ) : files.length === 0 ? (
+        <div className="text-center py-12">
+          <DocumentIcon className="h-16 w-16 mx-auto text-gray-400" />
+          <h3 className="mt-4 text-lg font-medium text-gray-900">Нет файлов</h3>
+          <p className="mt-1 text-sm text-gray-500">Загрузите файлы, чтобы они появились здесь.</p>
+          <div className="mt-6">
+            <button
+              onClick={() => window.location.href = '/upload'}
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+            >
+              Загрузить файлы
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="overflow-hidden bg-white dark:bg-dark-card shadow dark:shadow-gray-800 sm:rounded-md">
-          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredFiles.map(file => (
-              <li key={file.id}>
-                <div className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center">
-                    {getFileIcon(file.filename)}
-                    <div className="flex-1 min-w-0 ml-4">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {file.filename}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {formatBytes(file.file_size)} • {new Date(file.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => copyLinkToClipboard(file.id, file.is_public ? file.public_url : file.file_url)}
-                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
-                        title={file.is_public ? "Копировать публичную ссылку" : "Копировать ссылку"}
-                      >
-                        {copySuccess === file.id ? (
-                          <span className="text-xs text-green-600 dark:text-green-400">Скопировано!</span>
-                        ) : (
-                          <LinkIcon className="w-5 h-5" />
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md">
+            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300">
+              <tr>
+                <th className="py-3 px-4 text-left font-medium text-sm uppercase tracking-wider">Файл</th>
+                <th className="py-3 px-4 text-left font-medium text-sm uppercase tracking-wider">Размер</th>
+                <th className="py-3 px-4 text-left font-medium text-sm uppercase tracking-wider">Дата загрузки</th>
+                <th className="py-3 px-4 text-left font-medium text-sm uppercase tracking-wider">Статус</th>
+                <th className="py-3 px-4 text-right font-medium text-sm uppercase tracking-wider">Действия</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {files.map((file) => (
+                <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="py-4 px-4">
+                    <div className="flex items-center">
+                      {getFileIcon(file.filename)}
+                      <div className="ml-3">
+                        <p className="text-gray-900 dark:text-gray-100 font-medium truncate max-w-xs">{file.filename}</p>
+                        {file.folder && (
+                          <p className="text-gray-500 dark:text-gray-400 text-sm">{file.folder}</p>
                         )}
-                      </button>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4 text-gray-600 dark:text-gray-300">
+                    {formatFileSize(file.size)}
+                  </td>
+                  <td className="py-4 px-4 text-gray-600 dark:text-gray-300">
+                    {new Date(file.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="py-4 px-4">
+                    <span 
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        file.is_public 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' 
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
+                      }`}
+                    >
+                      {file.is_public ? 'Публичный' : 'Приватный'}
+                    </span>
+                  </td>
+                  <td className="py-4 px-4 text-right">
+                    <div className="flex justify-end space-x-2">
                       <button
                         onClick={() => handleViewFile(file)}
-                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                         title="Просмотреть"
                       >
-                        <ArrowTopRightOnSquareIcon className="w-5 h-5" />
+                        <EyeIcon className="h-5 w-5" />
                       </button>
                       <button
                         onClick={() => handleDownload(file)}
-                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300"
+                        className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                         title="Скачать"
                       >
-                        <ArrowDownTrayIcon className="w-5 h-5" />
+                        <ArrowDownTrayIcon className="h-5 w-5" />
                       </button>
                       <button
-                        onClick={() => toggleFilePrivacy(file.id)}
-                        className={`p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300`}
-                        title={file.is_public ? "Сделать личным" : "Сделать публичным"}
+                        onClick={() => copyLinkToClipboard(file)}
+                        className={`${copySuccess === file.id ? 'text-primary-600' : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                        title="Копировать ссылку"
+                      >
+                        {copySuccess === file.id ? (
+                          <span className="text-xs text-primary-600">Скопировано!</span>
+                        ) : (
+                          <LinkIcon className="h-5 w-5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => toggleFilePrivacy(file.id, file.is_public)}
+                        className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
+                        title={file.is_public ? 'Сделать приватным' : 'Сделать публичным'}
+                        disabled={isLoading}
                       >
                         {file.is_public ? (
-                          <LockClosedIcon className="w-5 h-5" />
+                          <LockClosedIcon className="h-5 w-5" />
                         ) : (
-                          <GlobeAltIcon className="w-5 h-5" />
+                          <GlobeAltIcon className="h-5 w-5" />
                         )}
                       </button>
                       <button
                         onClick={() => deleteFile(file.id)}
-                        className="p-2 text-gray-400 dark:text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-500 dark:hover:text-red-400"
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                         title="Удалить"
+                        disabled={isLoading}
                       >
-                        <TrashIcon className="w-5 h-5" />
+                        <TrashIcon className="h-5 w-5" />
                       </button>
                     </div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

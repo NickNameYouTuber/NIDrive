@@ -13,6 +13,5 @@ alembic==1.13.1
 pyjwt==2.8.0
 psutil==5.9.7
 # Новые зависимости для работы с MongoDB
-pymongo==4.6.2
-gridfs-stream==0.1.0
+pymongo==4.6.2  # Включает модуль gridfs для работы с файлами
 dnspython==2.6.0
