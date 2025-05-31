@@ -14,6 +14,7 @@ from database import SessionLocal, engine, Base
 import models
 import schemas
 import file_api
+import health_check
 from auth import get_current_user, create_access_token, verify_telegram_auth
 from storage import StorageManager
 
@@ -24,29 +25,94 @@ logger.setLevel(logging.INFO)
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="NIDriveBot API", description="File storage backend service")
+app = FastAPI(
+    title="NIDriveBot API", 
+    description="File storage backend service",
+    # Включаем полные сообщения об ошибках в продакшене для отладки
+    debug=True,
+)
 
 # Configure CORS
 # Обновленные настройки CORS с детальными разрешениями
+# Разрешаем все ориджины для быстрого тестирования
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.responses import JSONResponse
+import time
+import traceback
+import sys
+
+# Мидлварь для логирования запросов
+class RequestLoggerMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        
+        # Логируем входящий запрос
+        logger.info(f"Request: {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+        
+        # Отлавливаем исключения во время обработки
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            logger.error(f"Exception during request processing: {str(e)}")
+            logger.error(traceback.format_exc())
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error", "message": str(e)}
+            )
+        
+        # Логируем информацию об ответе
+        process_time = time.time() - start_time
+        logger.info(f"Response: {request.method} {request.url.path} - Status {response.status_code} - Time {process_time:.3f}s")
+        
+        return response
+
+# Добавляем мидлварь для логирования
+app.add_middleware(RequestLoggerMiddleware)
+
+# Добавляем сжатие gzip для больших ответов
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Добавляем CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:7071", 
-        "http://127.0.0.1:7071",
-        "http://localhost:5173",  # Vite dev server по умолчанию
-        "https://drive.nicorp.tech",  # Продакшен домен
-        "http://drive.nicorp.tech",   # HTTP версия
-        "https://nicorp.tech",         # Основной домен
-        "http://nicorp.tech",
-        "http://backend:7070",         # Docker сервис
-        "http://frontend:7071",        # Docker сервис
-    ],
+    allow_origins=["*"],  # Разрешаем все ориджины для тестирования
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Явно указываем разрешенные методы
-    allow_headers=["Authorization", "Content-Type"],  # Явно указываем разрешенные заголовки
-    expose_headers=["Content-Type"],
-    max_age=600,  # Кэширование запросов preflight на 10 минут
+    allow_methods=["*"],  # Разрешаем все методы
+    allow_headers=["*"],  # Разрешаем все заголовки
+    expose_headers=["*"],
+    max_age=86400,  # Кэширование на 24 часа
 )
+
+# Глобальные обработчики исключений
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request, exc):
+    logger.error(f"HTTP Exception: {exc.detail} (status code: {exc.status_code})")
+    return await http_exception_handler(request, exc)
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    logger.error(f"Validation Error: {str(exc)}")
+    return await request_validation_exception_handler(request, exc)
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request, exc):
+    logger.error(f"Unhandled Exception: {str(exc)}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "message": str(exc),
+            "type": type(exc).__name__,
+            "traceback": traceback.format_tb(exc.__traceback__) if app.debug else None
+        }
+    )
 
 # Dependency to get DB session
 def get_db():
@@ -82,15 +148,26 @@ PUBLIC_DIR = os.path.join(UPLOAD_DIR, "public")
 os.makedirs(PRIVATE_DIR, exist_ok=True)
 os.makedirs(PUBLIC_DIR, exist_ok=True)
 
-# Добавляем файловый API-роутер
+# Добавляем API маршруты
 app.include_router(file_api.router)
+app.include_router(health_check.router)
 
 # Старые эндпоинты для работы с файлами удалены.
 # Теперь используется новое файловое API с более правильным разделением на приватные/публичные файлы.
 
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Обработчик для OPTIONS запросов (CORS preflight)"""
+    return {"allowed": True}
+
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to NIDriveBot API"}
+    return {"message": "Welcome to NIDriveBot API", "status": "online", "version": "1.0.0"}
+
+@app.get("/users/me", response_model=schemas.User)
+async def read_users_me(current_user: models.User = Depends(get_current_user)):
+    """Получить информацию о текущем пользователе"""
+    return current_user
 
 @app.post("/auth/telegram-login")
 def telegram_login(auth_data: schemas.TelegramAuth, db: Session = Depends(get_db)):
