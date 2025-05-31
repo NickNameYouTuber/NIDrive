@@ -1,5 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Path, Body
 from fastapi.responses import JSONResponse, FileResponse, Response
+from fastapi.logger import logger
+import logging
+
+# Настраиваем уровень логирования
+logger.setLevel(logging.DEBUG)
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -227,7 +232,26 @@ async def get_file_info(
     # Увеличиваем счетчик просмотров
     models.increment_file_view_count(db, file_id=file_id)
     
-    return file
+    # Проверяем и обновляем MIME-тип, если он не определен или некорректен
+    mime_type = file.mime_type
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = storage_manager.get_file_mime_type(file.file_path)
+        # Обновляем MIME-тип в базе данных
+        models.update_file(db, file_id=file_id, mime_type=mime_type)
+    
+    # Логирование для отладки
+    logger.debug(f"Preview file: {file.filename}, MIME type: {mime_type}, Path: {file.file_path}")
+    
+    # Создаем и возвращаем ответ
+    response = FileResponse(
+        path=file.file_path,
+        media_type=mime_type
+    )
+    
+    # Устанавливаем явно Content-Disposition типа "inline" для отображения в браузере
+    response.headers["Content-Disposition"] = f'inline; filename="{file.filename}"'
+    
+    return response
 
 @router.put("/{file_id}", response_model=schemas.File)
 async def update_file(
@@ -408,12 +432,28 @@ async def download_private_file(
         mime_type = storage_manager.get_file_mime_type(file.file_path)
         # Обновляем MIME-тип в базе данных
         models.update_file(db, file_id=file.id, mime_type=mime_type)
-        
-    return FileResponse(
+    
+    # Логирование для отладки
+    logger.debug(f"Serving file: {file.filename}, MIME type: {mime_type}, Path: {file.file_path}")
+    
+    # Определяем, нужно ли показать файл в браузере или скачать его
+    content_disposition_type = "inline"
+    if mime_type and not mime_type.startswith(("image/", "text/", "video/", "audio/", "application/pdf")):
+        content_disposition_type = "attachment"
+    
+    # Создаем и возвращаем ответ
+    response = FileResponse(
         path=file.file_path,
         filename=file.filename,
         media_type=mime_type
     )
+    
+    # Устанавливаем явно Content-Disposition заголовок для лучшей совместимости
+    response.headers["Content-Disposition"] = f'{content_disposition_type}; filename="{file.filename}"'
+    # Добавляем заголовок безопасности, чтобы предотвратить "content type sniffing"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    return response
 
 @router.get("/public/{file_id}")
 async def download_public_file(
@@ -441,12 +481,28 @@ async def download_public_file(
         mime_type = storage_manager.get_file_mime_type(file.file_path)
         # Обновляем MIME-тип в базе данных
         models.update_file(db, file_id=file.id, mime_type=mime_type)
-        
-    return FileResponse(
+    
+    # Логирование для отладки
+    logger.debug(f"Serving file: {file.filename}, MIME type: {mime_type}, Path: {file.file_path}")
+    
+    # Определяем, нужно ли показать файл в браузере или скачать его
+    content_disposition_type = "inline"
+    if mime_type and not mime_type.startswith(("image/", "text/", "video/", "audio/", "application/pdf")):
+        content_disposition_type = "attachment"
+    
+    # Создаем и возвращаем ответ
+    response = FileResponse(
         path=file.file_path,
         filename=file.filename,
         media_type=mime_type
     )
+    
+    # Устанавливаем явно Content-Disposition заголовок для лучшей совместимости
+    response.headers["Content-Disposition"] = f'{content_disposition_type}; filename="{file.filename}"'
+    # Добавляем заголовок безопасности, чтобы предотвратить "content type sniffing"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    return response
 
 @router.get("/shared/{access_token}")
 async def download_shared_file(
@@ -474,12 +530,28 @@ async def download_shared_file(
         mime_type = storage_manager.get_file_mime_type(file.file_path)
         # Обновляем MIME-тип в базе данных
         models.update_file(db, file_id=file.id, mime_type=mime_type)
-        
-    return FileResponse(
+    
+    # Логирование для отладки
+    logger.debug(f"Serving file: {file.filename}, MIME type: {mime_type}, Path: {file.file_path}")
+    
+    # Определяем, нужно ли показать файл в браузере или скачать его
+    content_disposition_type = "inline"
+    if mime_type and not mime_type.startswith(("image/", "text/", "video/", "audio/", "application/pdf")):
+        content_disposition_type = "attachment"
+    
+    # Создаем и возвращаем ответ
+    response = FileResponse(
         path=file.file_path,
         filename=file.filename,
         media_type=mime_type
     )
+    
+    # Устанавливаем явно Content-Disposition заголовок для лучшей совместимости
+    response.headers["Content-Disposition"] = f'{content_disposition_type}; filename="{file.filename}"'
+    # Добавляем заголовок безопасности, чтобы предотвратить "content type sniffing"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    return response
 
 @router.get("/preview/{file_id}")
 async def preview_file(
@@ -512,11 +584,21 @@ async def preview_file(
         mime_type = storage_manager.get_file_mime_type(file.file_path)
         # Обновляем MIME-тип в базе данных
         models.update_file(db, file_id=file_id, mime_type=mime_type)
-        
-    return FileResponse(
+    
+    # Логирование для отладки
+    logger.debug(f"Preview file: {file.filename}, MIME type: {mime_type}, Path: {file.file_path}")
+    
+    # Создаем и возвращаем ответ
+    response = FileResponse(
         path=file.file_path,
         media_type=mime_type
     )
+    
+    # Устанавливаем явно Content-Disposition типа "inline" для отображения в браузере
+    response.headers["Content-Disposition"] = f'inline; filename="{file.filename}"'
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    return response
 
 @router.get("/stats/usage", response_model=schemas.StorageInfo)
 async def get_storage_usage(
