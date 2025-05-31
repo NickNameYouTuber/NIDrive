@@ -80,6 +80,15 @@ async def list_folders(
     """Получить список уникальных папок пользователя"""
     return storage_service.get_folders(user_id=str(current_user.id))
 
+# Alias для /storage/usage
+@router.get("/storage-info", response_model=StorageInfo, tags=["files"])
+async def get_storage_info_alias(
+    current_user: models.User = Depends(get_current_user),
+    storage_service: StorageService = Depends(get_storage)
+):
+    """Получить информацию об использовании хранилища (алиас для фронтенда)"""
+    return storage_service.get_storage_info(user_id=str(current_user.id))
+
 @router.post("/files/upload", response_model=FileMetadata, tags=["files"])
 async def upload_file(
     file: UploadFile = File(...),

@@ -79,12 +79,19 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 MAX_USER_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5GB
 
 # Загрузка маршрутов файлового API
-from file_routes import router as file_router
+from file_routes import router as file_router, get_storage
 
 # Используем новый механизм проверки доступа вместо мидлвари
 
-# Подключаем маршруты файлового API
-app.include_router(file_router, prefix="", tags=["files"])
+# Подключаем маршруты файлового API с префиксом /api для совместимости с фронтендом
+app.include_router(file_router, prefix="/api", tags=["files"])
+
+# Создаем дополнительный маршрут для хранилища
+@app.get("/storage/usage")
+async def storage_usage(current_user = Depends(get_current_user)):
+    # Перенаправляем на маршрут /api/storage-info
+    from file_routes import get_storage_info
+    return await get_storage_info(current_user=current_user, storage_service=next(get_storage()))
 
 # Все маршруты для файлов перемещены в file_routes.py
 
