@@ -273,7 +273,16 @@ async def process_auth_code(request: Request, db: Session = Depends(get_db)):
 @app.get("/users/me", response_model=schemas.User)
 def get_current_user_info(current_user: models.User = Depends(get_current_user)):
     """Get current user information"""
-    return current_user
+    # Преобразуем модель в дикт и превращаем telegram_id в строку, если это необходимо
+    user_dict = {
+        "id": current_user.id,
+        "telegram_id": str(current_user.telegram_id),  # Преобразуем в строку
+        "username": current_user.username,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "created_at": current_user.created_at
+    }
+    return user_dict
 
 # Список файлов пользователя теперь доступен через новые маршруты
 
