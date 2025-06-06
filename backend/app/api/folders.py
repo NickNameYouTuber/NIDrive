@@ -14,7 +14,7 @@ from ..services.folder_service import (
 
 router = APIRouter(prefix="/api/v1/folders")
 
-@router.post("/", response_model=FolderResponse)
+@router.post("", response_model=FolderResponse)
 async def create_new_folder(
     folder: FolderCreate,
     current_user: User = Depends(get_current_user),
@@ -34,7 +34,7 @@ async def create_new_folder(
     
     return create_folder(db, folder, current_user.telegram_id)
 
-@router.get("/", response_model=List[FolderResponse])
+@router.get("", response_model=List[FolderResponse])
 async def list_folders(
     parent_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),

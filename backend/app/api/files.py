@@ -20,7 +20,7 @@ from ..services.file_service import (
 
 router = APIRouter(prefix="/api/v1/files")
 
-@router.post("/", response_model=FileResponse)
+@router.post("", response_model=FileResponse)
 async def upload_file(
     file: UploadFile = File(...),
     folder_id: Optional[int] = Form(None),
@@ -83,7 +83,7 @@ async def upload_file(
         public_url=public_url
     )
 
-@router.get("/", response_model=List[FileResponse])
+@router.get("", response_model=List[FileResponse])
 async def list_files(
     folder_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
