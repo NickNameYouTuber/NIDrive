@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Response, Body
-from fastapi.responses import FileResponse as FastAPIFileResponse
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import os
 import uuid
@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 import shutil
 
-from ..models.schemas import FileCreate, FileResponse as FileResponseSchema, FileUpdate
+from ..models.schemas import FileCreate, FileResponse, FileUpdate
 from ..models.user import User
 from ..models.file import File as FileModel
 from ..core.database import get_db
@@ -167,31 +167,24 @@ async def download_file(
         });
     ```
     """
-    # Получаем файл
     file = get_file_by_id(db, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Проверяем доступ
-    if file.is_public:
-        # Публичные файлы доступны всем
-        pass
-    elif current_user and file.owner_id == current_user.telegram_id:
-        # Владельцу разрешено скачивать собственные файлы
-        pass
-    else:
-        # В остальных случаях отказываем в доступе
+    # Проверяем доступ к файлу
+    if not file.is_public and current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if not file.is_public and current_user and file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
-    # Проверяем наличие файла на диске
-    file_path = file.storage_path
+    file_path = os.path.join(settings.UPLOAD_DIR, file.storage_path)
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File content not found")
+        raise HTTPException(status_code=404, detail="File not found on server")
     
-    return FastAPIFileResponse(
+    return FileResponse(
         path=file_path,
         filename=file.filename,
-        media_type=file.mime_type if file.mime_type else "application/octet-stream"
+        media_type=file.mime_type or "application/octet-stream"
     )
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
