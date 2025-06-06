@@ -96,7 +96,7 @@ class FileUpdate(BaseModel):
     is_public: Optional[bool] = None
 
 class FileResponse(FileBase):
-    id: int
+    id: str
     owner_id: str
     size_mb: float
     mime_type: Optional[str] = None

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Response
+from pydantic import BaseModel
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import os
@@ -109,7 +110,7 @@ async def list_files(
 
 @router.get("/{file_id}", response_model=FileResponse)
 async def get_file(
-    file_id: int,
+    file_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -127,10 +128,23 @@ async def get_file(
 
 @router.get("/{file_id}/download")
 async def download_file(
-    file_id: int,
+    file_id: str,
+    token: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = None,
 ):
+    # Пытаемся получить пользователя из токена в параметрах, если не авторизован
+    user = current_user
+    if not user and token:
+        try:
+            from ..core.auth import verify_token
+            payload = verify_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                user = db.query(User).filter(User.telegram_id == user_id).first()
+        except Exception:
+            # Если токен недействителен, продолжаем без аутентификации
+            pass
     """
     Download file content. Public files can be downloaded without authentication.
     """
@@ -138,8 +152,8 @@ async def download_file(
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Check if file is public or owned by current user
-    is_owner = current_user and file.owner_id == current_user.telegram_id
+    # Check if file is public or owned by user
+    is_owner = user and file.owner_id == user.telegram_id
     if not file.is_public and not is_owner:
         raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
@@ -156,7 +170,7 @@ async def download_file(
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_file(
-    file_id: int,
+    file_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -174,10 +188,13 @@ async def remove_file(
     delete_file(db, file_id, current_user.telegram_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+class VisibilityUpdate(BaseModel):
+    is_public: bool
+
 @router.patch("/{file_id}/visibility", response_model=FileResponse)
 async def change_file_visibility(
-    file_id: int,
-    is_public: bool,
+    file_id: str,
+    visibility: VisibilityUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -192,12 +209,12 @@ async def change_file_visibility(
     if not is_owner_of_file(db, file_id, current_user.telegram_id):
         raise HTTPException(status_code=403, detail="Not authorized to change this file's visibility")
     
-    updated_file = toggle_file_visibility(db, file_id, is_public, settings.PUBLIC_URL)
+    updated_file = toggle_file_visibility(db, file_id, visibility.is_public, settings.PUBLIC_URL)
     return updated_file
 
 @router.put("/{file_id}", response_model=FileResponse)
 async def update_file_metadata(
-    file_id: int,
+    file_id: str,
     file_update: FileUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
