@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 import os
 from .api import auth, files, folders, users
 from .core.config import settings
+from .db.base import Base
+from .db.session import engine
 
 app = FastAPI(
     title="NIDrive API",
@@ -19,6 +21,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Инициализация базы данных
+@app.on_event("startup")
+async def startup_db_client():
+    # Создаем таблицы
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created or already exist")
 
 # Include routers
 app.include_router(auth.router, tags=["authentication"])
