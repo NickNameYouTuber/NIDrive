@@ -14,7 +14,7 @@ app = FastAPI(
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this to your frontend URL
+    allow_origins=["https://drive.nicorp.tech", "http://localhost:7071"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
