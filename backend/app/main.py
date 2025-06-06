@@ -4,8 +4,8 @@ from fastapi.staticfiles import StaticFiles
 import os
 from .api import auth, files, folders, users
 from .core.config import settings
-from .db.base import Base
-from .db.session import engine
+from app.db.base import Base
+from app.db.session import engine
 
 app = FastAPI(
     title="NIDrive API",
