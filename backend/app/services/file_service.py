@@ -15,7 +15,8 @@ def create_file(
     storage_path: str,
     size_mb: float,
     mime_type: str = None,
-    public_url: str = None
+    public_url: str = None,
+    file_id: str = None
 ):
     """Create a new file record in the database"""
     db_file = File(
@@ -26,7 +27,8 @@ def create_file(
         size_mb=size_mb,
         mime_type=mime_type,
         is_public=file.is_public,
-        public_url=public_url
+        public_url=public_url,
+        id=file_id if file_id else None
     )
     db.add(db_file)
     db.commit()
