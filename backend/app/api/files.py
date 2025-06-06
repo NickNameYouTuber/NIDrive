@@ -132,18 +132,39 @@ async def get_file(
 @router.get("/{file_id}/download")
 async def download_file(
     file_id: str,
+    token: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
-    Download file content. Requires authentication.
+    Download file content. Supports authentication via token cookie or query parameter.
     """
+    # Если пользователь не аутентифицирован через cookie, попробуем через URL параметр
+    authenticated_user = current_user
+    if not authenticated_user and token:
+        try:
+            # Проверяем токен из URL параметра
+            payload = verify_token(token)
+            user_id = payload.get("sub")
+            if user_id:
+                authenticated_user = db.query(User).filter(User.telegram_id == user_id).first()
+        except Exception:
+            pass  # Если токен недействителен, просто продолжаем без авторизации
+    
+    # Получаем файл
     file = get_file_by_id(db, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Check if user is the owner of the file
-    if file.owner_id != current_user.telegram_id and not file.is_public:
+    # Проверяем доступ
+    if file.is_public:
+        # Публичные файлы доступны всем
+        pass
+    elif authenticated_user and file.owner_id == authenticated_user.telegram_id:
+        # Владельцу разрешено скачивать собственные файлы
+        pass
+    else:
+        # В остальных случаях отказываем в доступе
         raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
     # Get file content
@@ -227,7 +248,7 @@ async def change_file_visibility(
     if is_public is None:
         raise HTTPException(status_code=400, detail="is_public field is required")
     
-    public_url_base = settings.API_URL
+    public_url_base = settings.PUBLIC_URL
     updated_file = toggle_file_visibility(db, file_id, is_public, public_url_base)
     
     return updated_file
@@ -260,7 +281,7 @@ async def get_public_url(
     db: Session = Depends(get_db)
 ):
     """
-    Get the public URL for a public file
+    Get the public URL or authenticated URL for a file
     """
     file = get_file_by_id(db, file_id)
     if not file:
@@ -270,10 +291,14 @@ async def get_public_url(
     if file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to view this file's URL")
     
-    # Check if file is public
-    if not file.is_public:
-        raise HTTPException(status_code=400, detail="File is not public")
+    # Генерируем URL в зависимости от типа файла
+    if file.is_public:
+        # Для публичных файлов просто даем публичную ссылку
+        file_url = f"{settings.PUBLIC_URL}/api/v1/files/{file_id}/public-download"
+    else:
+        # Для приватных файлов генерируем временный токен доступа владельца
+        token_data = {"sub": current_user.telegram_id}
+        token = create_access_token(token_data)
+        file_url = f"{settings.PUBLIC_URL}/api/v1/files/{file_id}/download?token={token}"
     
-    # Return the public URL
-    public_url = f"{settings.API_URL}/api/v1/files/{file_id}/public-download"
-    return {"public_url": public_url}
+    return {"file_url": file_url}
