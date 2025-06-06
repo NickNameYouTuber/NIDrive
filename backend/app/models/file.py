@@ -1,5 +1,4 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Boolean
-import uuid as uuid_pkg
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..core.database import Base
@@ -7,7 +6,7 @@ from ..core.database import Base
 class File(Base):
     __tablename__ = "files"
 
-    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid_pkg.uuid4()))
+    id = Column(String, primary_key=True, index=True)
     filename = Column(String, nullable=False)
     storage_path = Column(String, nullable=False)  # Path in the storage system
     owner_id = Column(String, nullable=False, index=True)  # Telegram ID of the owner
