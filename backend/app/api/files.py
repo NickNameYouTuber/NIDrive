@@ -138,8 +138,8 @@ async def download_file(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
-    Download file content. Public files can be accessed without authentication.
-    Private files require authentication and owner permissions.
+    Download file content with authentication. All files require authentication.
+    Private files also require owner permissions.
     
     This endpoint is designed to be used with client-side JavaScript for handling downloads:
     
@@ -171,11 +171,41 @@ async def download_file(
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Проверяем доступ к файлу
-    if not file.is_public and current_user is None:
+    # Для всех файлов требуем аутентификацию
+    if current_user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if not file.is_public and current_user and file.owner_id != current_user.telegram_id:
+        
+    # Для приватных файлов требуем, чтобы текущий пользователь был владельцем
+    if not file.is_public and file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to download this file")
+    
+    file_path = os.path.join(settings.UPLOAD_DIR, file.storage_path)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found on server")
+    
+    return FastAPIFileResponse(
+        path=file_path,
+        filename=file.filename,
+        media_type=file.mime_type or "application/octet-stream"
+    )
+
+# Новый маршрут для публичных файлов (не требует аутентификации)
+@router.get("/public/{file_id}/download")
+async def download_public_file(
+    file_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Download public file content. Only public files can be accessed with this endpoint.
+    No authentication required.
+    """
+    file = get_file_by_id(db, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Проверяем, что файл публичный
+    if not file.is_public:
+        raise HTTPException(status_code=403, detail="This file is not public")
     
     file_path = os.path.join(settings.UPLOAD_DIR, file.storage_path)
     if not os.path.exists(file_path):
@@ -273,8 +303,12 @@ async def get_file_url(
     if file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to view this file's URL")
     
-    # Формируем публичный URL на основе настроек
-    download_url = f"{settings.PUBLIC_URL}{settings.API_V1_STR}/files/{file_id}/download"
+    # Создаем публичный URL на основе настроек
+    # Для публичных файлов используем маршрут /public/, для приватных - обычный
+    if file.is_public:
+        download_url = f"{settings.PUBLIC_URL}{settings.API_V1_STR}/files/public/{file_id}/download"
+    else:
+        download_url = f"{settings.PUBLIC_URL}{settings.API_V1_STR}/files/{file_id}/download"
     
     # Дополнительная информация для фронтенда
     response = {
