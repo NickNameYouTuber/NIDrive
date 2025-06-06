@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Response, Body
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse as FastAPIFileResponse
 from sqlalchemy.orm import Session
 import os
 import uuid
@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 import shutil
 
-from ..models.schemas import FileCreate, FileResponse, FileUpdate
+from ..models.schemas import FileCreate, FileResponse as FileSchemaResponse, FileUpdate
 from ..models.user import User
 from ..models.file import File as FileModel
 from ..core.database import get_db
@@ -21,7 +21,7 @@ from ..services.file_service import (
 
 router = APIRouter(prefix="/api/v1/files")
 
-@router.post("", response_model=FileResponse)
+@router.post("", response_model=FileSchemaResponse)
 async def upload_file(
     file: UploadFile = File(...),
     folder_id: Optional[str] = Form(None),
@@ -101,7 +101,7 @@ async def upload_file(
         file_id=file_id
     )
 
-@router.get("", response_model=List[FileResponse])
+@router.get("", response_model=List[FileSchemaResponse])
 async def list_files(
     folder_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
@@ -112,7 +112,7 @@ async def list_files(
     """
     return get_files_by_owner(db, current_user.telegram_id, folder_id)
 
-@router.get("/{file_id}", response_model=FileResponse)
+@router.get("/{file_id}", response_model=FileSchemaResponse)
 async def get_file(
     file_id: str,
     current_user: User = Depends(get_current_user),
@@ -181,7 +181,7 @@ async def download_file(
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found on server")
     
-    return FileResponse(
+    return FastAPIFileResponse(
         path=file_path,
         filename=file.filename,
         media_type=file.mime_type or "application/octet-stream"
@@ -207,7 +207,7 @@ async def remove_file(
     delete_file(db, file_id, current_user.telegram_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-@router.patch("/{file_id}/visibility", response_model=FileResponse)
+@router.patch("/{file_id}/visibility", response_model=FileSchemaResponse)
 async def change_file_visibility(
     file_id: str,
     visibility_data: Dict[str, bool] = Body(...),
@@ -235,7 +235,7 @@ async def change_file_visibility(
     
     return updated_file
 
-@router.put("/{file_id}", response_model=FileResponse)
+@router.put("/{file_id}", response_model=FileSchemaResponse)
 async def update_file_metadata(
     file_id: str,
     file_update: FileUpdate,
