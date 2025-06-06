@@ -1,10 +1,10 @@
 import os
 from typing import Any, Dict, Optional
 from pydantic import BaseModel
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from project root .env
+load_dotenv(find_dotenv())
 
 class Settings(BaseModel):
     PROJECT_NAME: str = "NIDrive"
@@ -25,8 +25,8 @@ class Settings(BaseModel):
     # File size limits
     MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", 200))  # Default 200MB per file
     
-    # Public URL for file access
-    PUBLIC_URL: str = os.getenv("PUBLIC_URL", "http://localhost:7070")
+    # Public URL for API access (prefer API_BASE_URL env var)
+    PUBLIC_URL: str = os.getenv("API_BASE_URL", os.getenv("WEB_APP_URL", "http://localhost:7070"))
     
     class Config:
         case_sensitive = True

@@ -273,8 +273,8 @@ async def get_file_url(
     if file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to view this file's URL")
     
-    # Создаем URL для скачивания
-    download_url = f"{settings.PUBLIC_URL}/api/v1/files/{file_id}/download"
+    # Формируем публичный URL на основе настроек
+    download_url = f"{settings.PUBLIC_URL}{settings.API_V1_STR}/files/{file_id}/download"
     
     # Дополнительная информация для фронтенда
     response = {

@@ -18,6 +18,8 @@ services:
       - DATABASE_PATH=/app/db/NIDriveBot.db
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - API_BASE_URL=${API_BASE_URL}
+      - WEB_APP_URL=${WEB_APP_URL}
     restart: unless-stopped
 
   frontend:
