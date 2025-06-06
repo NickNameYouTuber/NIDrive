@@ -1,268 +1,178 @@
-import React, { useState, useEffect } from 'react';
-import api from '../utils/api';
-import { useAuth } from '../hooks/useAuth';
-import { API_BASE_URL } from '../utils/constants';
-import { 
-  DocumentIcon, 
-  PhotoIcon, 
-  MusicalNoteIcon, 
-  FilmIcon, 
-  DocumentTextIcon 
-} from '@heroicons/react/24/outline';
+import React, { useEffect, useState } from 'react';
+import { Box, Grid, Paper, Typography, CircularProgress, LinearProgress, Divider, Button } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import FolderIcon from '@mui/icons-material/Folder';
+import StorageIcon from '@mui/icons-material/Storage';
+import { useAuth } from '../context/AuthContext';
+import { authService } from '../services/authService';
 
-interface StorageInfo {
-  used: number;
-  total: number;
-  percentage: number;
-}
-
-interface FileStats {
-  totalCount: number;
-  byType: {
-    [key: string]: number;
-  };
-  recentFiles: any[];
+interface UserStats {
+  total_files: number;
+  total_folders: number;
+  used_space: number; // in MB
+  quota: number; // in MB
+  usage_percent: number;
 }
 
 const DashboardPage: React.FC = () => {
-  const { user, token } = useAuth();
-  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
-  const [fileStats, setFileStats] = useState<FileStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Функция для открытия файла с правильной обработкой авторизации
-  const handleOpenFile = async (file: any) => {
-    try {
-      if (file.is_public && file.public_url) {
-        // Для публичных файлов открываем прямую ссылку
-        window.open(`${API_BASE_URL}${file.public_url}`, '_blank');
-      } else {
-        // Для приватных файлов используем API с токеном
-        const response = await api.get(`/api/files/download/${file.id}`, {
-          responseType: 'blob',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        
-        // Создаем URL-объект для открытия
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        window.open(url, '_blank');
-        
-        // Очищаем URL-объект через некоторое время
-        setTimeout(() => {
-          window.URL.revokeObjectURL(url);
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Ошибка при открытии файла:', error);
-      alert('Не удалось открыть файл');
-    }
-  };
+  const { user } = useAuth();
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchStats = async () => {
       try {
         setLoading(true);
-        
-        // Fetch storage usage
-        const storageResponse = await api.get('/storage/usage', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        setStorageInfo(storageResponse.data);
-        
-        // Fetch files
-        const filesResponse = await api.get('/files', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        
-        // Calculate file stats
-        const files = filesResponse.data;
-        const byType: {[key: string]: number} = {};
-        
-        files.forEach((file: any) => {
-          const extension = file.filename.split('.').pop()?.toLowerCase() || 'unknown';
-          byType[extension] = (byType[extension] || 0) + 1;
-        });
-        
-        setFileStats({
-          totalCount: files.length,
-          byType,
-          recentFiles: files.slice(0, 5) // Get 5 most recent files
-        });
-        
+        const data = await authService.getUserStats();
+        setStats(data);
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error('Failed to fetch user stats:', error);
       } finally {
         setLoading(false);
       }
     };
-    
-    fetchDashboardData();
-  }, [token]);
 
-  // Format bytes to human readable format
-  const formatBytes = (bytes: number, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
-    
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-  };
+    fetchStats();
+  }, []);
 
-  // Get icon for file type
-  const getFileIcon = (filename: string) => {
-    const extension = filename.split('.').pop()?.toLowerCase();
-    
-    switch (extension) {
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return <PhotoIcon className="w-8 h-8 text-primary-500" />;
-      case 'mp3':
-      case 'wav':
-        return <MusicalNoteIcon className="w-8 h-8 text-purple-500" />;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return <FilmIcon className="w-8 h-8 text-red-500" />;
-      case 'pdf':
-        return <DocumentTextIcon className="w-8 h-8 text-red-600" />;
-      default:
-        return <DocumentIcon className="w-8 h-8 text-gray-500" />;
+  const formatStorage = (size: number) => {
+    if (size < 1) {
+      return `${Math.round(size * 1024)} KB`;
+    } else if (size < 1024) {
+      return `${Math.round(size * 10) / 10} MB`;
+    } else {
+      return `${Math.round(size / 102.4) / 10} GB`;
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
+  // Stats dashboard items
+  const dashboardItems = [
+    {
+      title: 'Storage Used',
+      icon: <StorageIcon fontSize="large" color="primary" />,
+      value: stats ? formatStorage(stats.used_space) : '0 MB',
+      secondaryText: stats ? `of ${formatStorage(stats.quota)}` : 'of 0 MB',
+      progress: stats ? stats.usage_percent : 0
+    },
+    {
+      title: 'Files',
+      icon: <InsertDriveFileIcon fontSize="large" color="primary" />,
+      value: stats?.total_files || 0,
+      secondaryText: 'total files'
+    },
+    {
+      title: 'Folders',
+      icon: <FolderIcon fontSize="large" color="primary" />,
+      value: stats?.total_folders || 0,
+      secondaryText: 'total folders'
+    }
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Обзор</h1>
-      </div>
+    <Box sx={{ flexGrow: 1 }}>
+      {/* Welcome Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Welcome{user?.first_name ? `, ${user.first_name}` : ''}
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          Here's an overview of your NIDrive cloud storage
+        </Typography>
+      </Box>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Storage Card */}
-        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Использование хранилища</h2>
-          
-          {storageInfo && (
-            <>
-              <div className="mt-4 mb-2">
-                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
-                  <div 
-                    className="h-2 rounded-full bg-primary-600" 
-                    style={{ width: `${storageInfo.percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-                <span>{formatBytes(storageInfo.used)}</span>
-                <span>{formatBytes(storageInfo.total)}</span>
-              </div>
-              
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                Использовано {storageInfo.percentage.toFixed(1)}% из доступных 5 ГБ
-              </p>
-            </>
-          )}
-        </div>
+      {/* Stats Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {dashboardItems.map((item, index) => (
+          <Grid item xs={12} sm={6} md={4} key={index}>
+            <Paper
+              sx={{
+                p: 3,
+                display: 'flex',
+                flexDirection: 'column',
+                height: 180,
+                borderRadius: 2,
+              }}
+              elevation={2}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                {item.icon}
+                <Typography variant="h6" sx={{ ml: 1 }}>
+                  {item.title}
+                </Typography>
+              </Box>
+              <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h3" component="div" sx={{ fontWeight: 500 }}>
+                  {item.value}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {item.secondaryText}
+                </Typography>
+                {item.progress !== undefined && (
+                  <Box sx={{ mt: 2 }}>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={item.progress} 
+                      sx={{
+                        height: 8,
+                        borderRadius: 5,
+                        backgroundColor: theme => theme.palette.grey[200],
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: item.progress > 90 ? 'error.main' : 
+                                        item.progress > 70 ? 'warning.main' : 
+                                        'success.main',
+                        }
+                      }}
+                    />
+                    <Typography variant="body2" color="textSecondary" align="right" sx={{ mt: 0.5 }}>
+                      {item.progress}% used
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
 
-        {/* Files Count Card */}
-        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Файлы</h2>
-          
-          {fileStats && (
-            <div className="mt-4">
-              <p className="text-3xl font-bold text-primary-600">
-                {fileStats.totalCount}
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Всего файлов в хранилище
-              </p>
-              
-              <div className="mt-4">
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">По типам файлов</h3>
-                <ul className="mt-2 space-y-2">
-                  {Object.entries(fileStats.byType).slice(0, 3).map(([type, count]) => (
-                    <li key={type} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">.{type}</span>
-                      <span className="text-sm font-medium dark:text-gray-300">{count} файлов</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* User Info Card */}
-        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Аккаунт</h2>
-          
-          <div className="mt-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Имя пользователя</p>
-            <p className="font-medium dark:text-gray-200">
-              {user?.first_name} {user?.last_name}
-            </p>
-            
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Telegram</p>
-            <p className="font-medium dark:text-gray-200">@{user?.username || 'user'}</p>
-            
-            <div className="mt-4 p-3 bg-primary-50 dark:bg-[#2e2e2e] rounded-md">
-              <p className="text-sm text-primary-700 dark:text-primary-400">
-                Ваши файлы также доступны через Telegram бота
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Files */}
-      {fileStats && fileStats.recentFiles.length > 0 && (
-        <div className="p-6 bg-white dark:bg-dark-card rounded-lg shadow-md dark:shadow-gray-800">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Недавние файлы</h2>
-          
-          <ul className="mt-4 divide-y divide-gray-200 dark:divide-gray-700">
-            {fileStats.recentFiles.map((file) => (
-              <li key={file.id} className="py-3">
-                <div className="flex items-center">
-                  {getFileIcon(file.filename)}
-                  <div className="ml-3 flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{file.filename}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatBytes(file.file_size)} • {new Date(file.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleOpenFile(file)}
-                    className="px-3 py-1 text-xs text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-[#2e2e2e] rounded-md hover:bg-primary-100 dark:hover:bg-[#3e3e3e] cursor-pointer"
-                  >
-                    Открыть
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+      {/* Quick Actions */}
+      <Paper sx={{ p: 3, borderRadius: 2 }} elevation={2}>
+        <Typography variant="h6" gutterBottom>
+          Quick Actions
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+        <Grid container spacing={2}>
+          <Grid item>
+            <Button
+              variant="contained"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => navigate('/storage')}
+            >
+              Upload Files
+            </Button>
+          </Grid>
+          <Grid item>
+            <Button
+              variant="outlined"
+              startIcon={<FolderIcon />}
+              onClick={() => navigate('/storage')}
+            >
+              Browse Files
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
+    </Box>
   );
 };
 

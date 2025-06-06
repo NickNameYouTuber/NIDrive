@@ -2,18 +2,25 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import './index.css';
-import { AuthProvider } from './contexts/AuthContext';
-import { ThemeProvider } from './contexts/ThemeContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { SnackbarProvider } from 'notistack';
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+// Mount app to DOM
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <ThemeProvider>
-        <AuthProvider>
+        <SnackbarProvider 
+          maxSnack={3} 
+          autoHideDuration={3000}
+          anchorOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+        >
           <App />
-        </AuthProvider>
+        </SnackbarProvider>
       </ThemeProvider>
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

@@ -6,10 +6,11 @@ services:
     container_name: NIDriveBot-backend
     ports:
       - "7070:7070"
-    volumes:
-      - ./backend:/app
-      - uploads_data:/app/uploads
-      - db_data:/app/db
+    # Удаляем монтирование томов для исправления ошибки в Windows Docker Desktop
+    # volumes:
+    #  - ./backend:/app
+    #  - uploads_data:/app/uploads
+    #  - db_data:/app/db
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-me}
       - UPLOAD_DIR=/app/uploads
@@ -24,24 +25,14 @@ services:
     container_name: NIDriveBot-frontend
     ports:
       - "7071:7071"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+    # Удаляем монтирование томов для исправления ошибки в Windows Docker Desktop
+    # volumes:
+    #  - ./frontend:/app
+    #  - /app/node_modules
     environment:
       - VITE_API_URL=http://localhost:7070
-    depends_on:
-      - backend
-    restart: unless-stopped
-
-  telegram-bot:
-    build: ./telegram_bot
-    container_name: NIDriveBot-telegram-bot
-    volumes:
-      - ./telegram_bot:/app
-    environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - API_BASE_URL=http://backend:7070
-      - WEB_APP_URL=${WEB_APP_URL:-http://localhost:7071}
+      - VITE_TEST_MODE=false
+      - VITE_TELEGRAM_BOT_NAME=nidrivebot
     depends_on:
       - backend
     restart: unless-stopped

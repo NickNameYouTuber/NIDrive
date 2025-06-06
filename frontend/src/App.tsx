@@ -1,127 +1,126 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { lazy, Suspense } from 'react';
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
 
-// Pages
-import HomePage from './pages/HomePage';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import FilesPage from './pages/FilesPage';
-import UploadPage from './pages/UploadPage';
-import NotFoundPage from './pages/NotFoundPage';
+// Layouts
+import MainLayout from './layouts/MainLayout';
+import AuthLayout from './layouts/AuthLayout';
 
-// Components
-import Layout from './components/Layout';
+// Lazy-loaded pages
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const StoragePage = lazy(() => import('./pages/StoragePage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
-// Protected route component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+// Loading fallback component
+const PageLoader = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+    <CircularProgress />
+  </Box>
+);
+
+// Protected route wrapper
+const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return <>{children}</>;
+  return children;
 };
 
-// Компонент для обработки обратного вызова Telegram
-const TelegramAuthCallback = () => {
-  const { login } = useAuth();
-  const navigate = useNavigate();
+// Public route wrapper (redirect to dashboard if authenticated)
+const PublicRoute = ({ children }: { children: JSX.Element }) => {
+  const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    console.log('TelegramAuthCallback: Получены параметры', location.search);
-    
-    // Получаем параметры из URL
-    const params = new URLSearchParams(location.search);
-    
-    // Собираем данные авторизации
-    const telegramData: any = {
-      id: params.get('id'),
-      first_name: params.get('first_name'),
-      last_name: params.get('last_name'),
-      username: params.get('username'),
-      photo_url: params.get('photo_url'),
-      auth_date: params.get('auth_date'),
-      hash: params.get('hash')
-    };
+  if (loading) {
+    return <PageLoader />;
+  }
 
-    // Дополнительная отладка
-    console.log('TelegramAuthCallback: Данные авторизации', telegramData);
+  // If user is authenticated and trying to access login/landing pages
+  if (isAuthenticated && 
+      (location.pathname === '/login' || location.pathname === '/')) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
-    // Проверяем, что есть все необходимые данные
-    if (telegramData.id && telegramData.hash) {
-      // Преобразуем auth_date в число или строку, чтобы избежать ошибок типов
-      const authDateStr = telegramData.auth_date;
-      if (authDateStr) {
-        try {
-          // Сохраняем и строку, и числовое значение
-          telegramData.auth_date_num = parseInt(authDateStr, 10);
-        } catch (e) {
-          console.error('Ошибка при преобразовании auth_date', e);
-        }
-      }
-      
-      login(telegramData)
-        .then(() => {
-          console.log('TelegramAuthCallback: Успешная авторизация');
-          navigate('/');
-        })
-        .catch((error) => {
-          console.error('TelegramAuthCallback: Ошибка авторизации', error);
-          navigate('/login');
-        });
-    } else {
-      console.error('Недостаточно данных для авторизации', telegramData);
-      navigate('/login');
-    }
-  }, [login, navigate, location]);
+  return children;
+};
 
+// Main App Router
+const AppRouter = () => {
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-    </div>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={
+          <PublicRoute>
+            <MainLayout hideNav>
+              <LandingPage />
+            </MainLayout>
+          </PublicRoute>
+        } />
+        
+        <Route path="/login" element={
+          <PublicRoute>
+            <AuthLayout>
+              <LoginPage />
+            </AuthLayout>
+          </PublicRoute>
+        } />
+
+        {/* Protected routes */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <MainLayout>
+              <DashboardPage />
+            </MainLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/storage" element={
+          <ProtectedRoute>
+            <MainLayout>
+              <StoragePage />
+            </MainLayout>
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/storage/:folderId" element={
+          <ProtectedRoute>
+            <MainLayout>
+              <StoragePage />
+            </MainLayout>
+          </ProtectedRoute>
+        } />
+        
+        {/* Not found page */}
+        <Route path="*" element={
+          <MainLayout hideNav>
+            <NotFoundPage />
+          </MainLayout>
+        } />
+      </Routes>
+    </Suspense>
   );
 };
 
-function App() {
+// Root App component
+const App = () => {
   return (
-    <Routes>
-      {/* Публичные маршруты */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/auth/callback" element={<TelegramAuthCallback />} />
-      
-      {/* Защищенные маршруты пользовательского интерфейса диска */}
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Layout />
-        </ProtectedRoute>
-      }>
-        <Route index element={<DashboardPage />} />
-        <Route path="files" element={<FilesPage />} />
-        <Route path="upload" element={<UploadPage />} />
-      </Route>
-      
-      {/* Редирект с / на /dashboard при авторизации */}
-      <Route path="/" element={
-        <ProtectedRoute>
-          <Navigate to="/dashboard" replace />
-        </ProtectedRoute>
-      } />
-      
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <AuthProvider>
+      <AppRouter />
+    </AuthProvider>
   );
-}
+};
 
 export default App;

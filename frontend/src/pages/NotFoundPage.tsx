@@ -1,23 +1,45 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Box, Typography, Button, Container } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
+import { useAuth } from '../context/AuthContext';
 
 const NotFoundPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen py-16 bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-6xl font-bold text-primary-600">404</h1>
-        <h2 className="mt-4 text-3xl font-bold tracking-tight text-gray-900">Страница не найдена</h2>
-        <p className="mt-2 text-base text-gray-500">К сожалению, мы не смогли найти запрашиваемую страницу.</p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md shadow-sm hover:bg-primary-700"
-          >
-            Вернуться на главную
-          </Link>
-        </div>
-      </div>
-    </div>
+    <Container maxWidth="md">
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '70vh',
+          textAlign: 'center',
+          py: 4
+        }}
+      >
+        <SearchOffIcon sx={{ fontSize: 100, color: 'text.secondary', mb: 4 }} />
+        
+        <Typography variant="h3" gutterBottom>
+          Page Not Found
+        </Typography>
+        
+        <Typography variant="h5" color="text.secondary" sx={{ mb: 4 }}>
+          The page you are looking for doesn't exist or has been moved.
+        </Typography>
+        
+        <Button
+          variant="contained"
+          size="large"
+          component={RouterLink}
+          to={isAuthenticated ? '/dashboard' : '/'}
+        >
+          {isAuthenticated ? 'Go to Dashboard' : 'Go to Home Page'}
+        </Button>
+      </Box>
+    </Container>
   );
 };
 
