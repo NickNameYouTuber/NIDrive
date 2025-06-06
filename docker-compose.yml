@@ -30,7 +30,7 @@ services:
     #  - ./frontend:/app
     #  - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:7070
+      - VITE_API_URL=https://drive.nicorp.tech/api/v1
       - VITE_TEST_MODE=false
       - VITE_TELEGRAM_BOT_NAME=nidrivebot
     depends_on:
