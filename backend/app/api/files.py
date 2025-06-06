@@ -133,22 +133,45 @@ async def get_file(
 async def download_file(
     file_id: str,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Download file content. Public files can be downloaded without authentication.
+    Download file content. Requires authentication.
     """
     file = get_file_by_id(db, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Allow download of public files without authentication
-    if file.is_public:
-        pass
-    else:
-        # For private files, check if user is authenticated and is the owner
-        if not current_user or file.owner_id != current_user.telegram_id:
-            raise HTTPException(status_code=403, detail="Not authorized to download this file")
+    # Check if user is the owner of the file
+    if file.owner_id != current_user.telegram_id and not file.is_public:
+        raise HTTPException(status_code=403, detail="Not authorized to download this file")
+    
+    # Get file content
+    file_path = file.storage_path
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File content not found")
+    
+    return FileResponse(
+        path=file_path,
+        filename=file.filename,
+        media_type=file.mime_type if file.mime_type else "application/octet-stream"
+    )
+
+@router.get("/{file_id}/public-download")
+async def download_public_file(
+    file_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Download public file content without authentication.
+    """
+    file = get_file_by_id(db, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if the file is public
+    if not file.is_public:
+        raise HTTPException(status_code=403, detail="This file is not public")
     
     # Get file content
     file_path = file.storage_path
@@ -189,23 +212,24 @@ async def change_file_visibility(
     db: Session = Depends(get_db)
 ):
     """
-    Toggle a file between public and private visibility
+    Toggle a file's visibility between public and private
     """
-    is_public = visibility_data.get("is_public")
-    if is_public is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing is_public parameter"
-        )
     file = get_file_by_id(db, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Verify ownership
-    if not is_owner_of_file(db, file_id, current_user.telegram_id):
-        raise HTTPException(status_code=403, detail="Not authorized to change this file's visibility")
+    # Check if user is the owner
+    if file.owner_id != current_user.telegram_id:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this file")
     
-    updated_file = toggle_file_visibility(db, file_id, is_public, settings.PUBLIC_URL)
+    # Toggle visibility
+    is_public = visibility_data.get("is_public")
+    if is_public is None:
+        raise HTTPException(status_code=400, detail="is_public field is required")
+    
+    public_url_base = settings.API_URL
+    updated_file = toggle_file_visibility(db, file_id, is_public, public_url_base)
+    
     return updated_file
 
 @router.put("/{file_id}", response_model=FileResponse)
@@ -228,3 +252,28 @@ async def update_file_metadata(
     
     updated_file = update_file(db, file_id, file_update, settings.PUBLIC_URL)
     return updated_file
+
+@router.get("/{file_id}/public-url")
+async def get_public_url(
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get the public URL for a public file
+    """
+    file = get_file_by_id(db, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if user is the owner
+    if file.owner_id != current_user.telegram_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this file's URL")
+    
+    # Check if file is public
+    if not file.is_public:
+        raise HTTPException(status_code=400, detail="File is not public")
+    
+    # Return the public URL
+    public_url = f"{settings.API_URL}/api/v1/files/{file_id}/public-download"
+    return {"public_url": public_url}
