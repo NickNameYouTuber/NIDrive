@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 import os
 import uuid
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 import shutil
 
@@ -129,45 +130,101 @@ async def get_file(
     
     return file
 
-@router.get("/{file_id}/download")
-async def download_file(
+# Хранилище токенов доступа к файлам (в памяти, сбрасывается при перезапуске сервера)
+# В реальном приложении лучше использовать Redis или другое хранилище
+file_tokens = {}
+
+@router.post("/{file_id}/get-download-token")
+async def create_download_token(
     file_id: str,
-    token: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Download file content. Supports authentication via token cookie or query parameter.
+    Create a temporary token for direct file download without authentication
     """
-    # Если пользователь не аутентифицирован через cookie, попробуем через URL параметр
-    authenticated_user = current_user
-    if not authenticated_user and token:
-        try:
-            # Проверяем токен из URL параметра
-            payload = verify_token(token)
-            user_id = payload.get("sub")
-            if user_id:
-                authenticated_user = db.query(User).filter(User.telegram_id == user_id).first()
-        except Exception:
-            pass  # Если токен недействителен, просто продолжаем без авторизации
-    
-    # Получаем файл
     file = get_file_by_id(db, file_id)
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Проверяем доступ
-    if file.is_public:
-        # Публичные файлы доступны всем
-        pass
-    elif authenticated_user and file.owner_id == authenticated_user.telegram_id:
-        # Владельцу разрешено скачивать собственные файлы
-        pass
-    else:
-        # В остальных случаях отказываем в доступе
+    # Проверка прав доступа - только владелец может создать токен
+    if file.owner_id != current_user.telegram_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this file")
+    
+    # Создаем одноразовый токен для скачивания
+    download_token = str(uuid.uuid4())  # Генерируем уникальный токен
+    
+    # Сохраняем токен с привязкой к файлу и пользователю (действует 5 минут)
+    file_tokens[download_token] = {
+        "file_id": file_id,
+        "expires": datetime.utcnow() + timedelta(minutes=5)
+    }
+    
+    # Создаем прямую ссылку на файл с токеном
+    download_url = f"{settings.PUBLIC_URL}/api/v1/files/direct-download/{download_token}"
+    
+    return {"download_url": download_url}
+
+@router.get("/direct-download/{download_token}")
+async def direct_download(
+    download_token: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Download file using a temporary token without authentication
+    """
+    # Проверяем наличие токена
+    if download_token not in file_tokens:
+        raise HTTPException(status_code=404, detail="Invalid download link")
+    
+    # Проверяем срок действия токена
+    token_data = file_tokens[download_token]
+    if datetime.utcnow() > token_data["expires"]:
+        # Удаляем просроченный токен
+        del file_tokens[download_token]
+        raise HTTPException(status_code=410, detail="Download link has expired")
+    
+    # Получаем файл
+    file_id = token_data["file_id"]
+    file = get_file_by_id(db, file_id)
+    if not file:
+        # Токен для несуществующего файла - удаляем
+        del file_tokens[download_token]
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Проверяем наличие файла на диске
+    file_path = file.storage_path
+    if not os.path.exists(file_path):
+        del file_tokens[download_token]
+        raise HTTPException(status_code=404, detail="File content not found")
+    
+    # Одноразовый токен - удаляем после использования
+    del file_tokens[download_token]
+    
+    return FileResponse(
+        path=file_path,
+        filename=file.filename,
+        media_type=file.mime_type if file.mime_type else "application/octet-stream"
+    )
+
+@router.get("/{file_id}/download")
+async def download_file(
+    file_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Download file content (requires authentication)
+    """
+    file = get_file_by_id(db, file_id)
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Проверяем права доступа
+    if file.owner_id != current_user.telegram_id and not file.is_public:
         raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
-    # Get file content
+    # Проверяем наличие файла на диске
     file_path = file.storage_path
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File content not found")
@@ -275,13 +332,13 @@ async def update_file_metadata(
     return updated_file
 
 @router.get("/{file_id}/public-url")
-async def get_public_url(
+async def get_file_url(
     file_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get the public URL or authenticated URL for a file
+    Get a shareable URL for a file (works for both public and private files)
     """
     file = get_file_by_id(db, file_id)
     if not file:
@@ -291,14 +348,20 @@ async def get_public_url(
     if file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to view this file's URL")
     
-    # Генерируем URL в зависимости от типа файла
-    if file.is_public:
-        # Для публичных файлов просто даем публичную ссылку
-        file_url = f"{settings.PUBLIC_URL}/api/v1/files/{file_id}/public-download"
-    else:
-        # Для приватных файлов генерируем временный токен доступа владельца
-        token_data = {"sub": current_user.telegram_id}
-        token = create_access_token(token_data)
-        file_url = f"{settings.PUBLIC_URL}/api/v1/files/{file_id}/download?token={token}"
+    # Генерируем одноразовый токен для скачивания
+    download_token = str(uuid.uuid4())
     
-    return {"file_url": file_url}
+    # Сохраняем токен в хранилище
+    file_tokens[download_token] = {
+        "file_id": file_id,
+        "expires": datetime.utcnow() + timedelta(minutes=60)  # Больше времени для публичной ссылки
+    }
+    
+    # Создаем URL для прямого скачивания
+    download_url = f"{settings.PUBLIC_URL}/api/v1/files/direct-download/{download_token}"
+    
+    return {
+        "file_url": download_url,
+        "expires_in_minutes": 60,
+        "is_public": file.is_public
+    }
