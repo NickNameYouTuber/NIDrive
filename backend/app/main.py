@@ -2,25 +2,9 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-import sys
 from .api import auth, files, folders, users
 from .core.config import settings
-
-# Пытаемся найти правильный путь к модулям db
-try:
-    from db.base import Base
-    from db.session import engine
-except ImportError:
-    # Пробуем альтернативные варианты импорта
-    try:
-        from .db.base import Base
-        from .db.session import engine
-    except ImportError:
-        print("Cannot import database modules, check project structure")
-        print(f"Python path: {sys.path}")
-        # Продолжаем без инициализации БД, чтобы приложение хотя бы запустилось
-        Base = None
-        engine = None
+from .core.database import Base, engine
 
 app = FastAPI(
     title="NIDrive API",
@@ -40,12 +24,9 @@ app.add_middleware(
 # Инициализация базы данных
 @app.on_event("startup")
 async def startup_db_client():
-    # Создаем таблицы только если импорты успешны
-    if Base is not None and engine is not None:
-        Base.metadata.create_all(bind=engine)
-        print("Database tables created or already exist")
-    else:
-        print("WARNING: Database initialization skipped due to import errors")
+    # Создаем таблицы
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created or already exist")
 
 # Include routers
 app.include_router(auth.router, tags=["authentication"])
