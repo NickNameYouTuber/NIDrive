@@ -142,10 +142,13 @@ async def download_file(
     if not file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Check if file is public or owned by current user
-    is_owner = current_user and file.owner_id == current_user.telegram_id if current_user else False
-    if not file.is_public and not is_owner:
-        raise HTTPException(status_code=403, detail="Not authorized to download this file")
+    # Allow download of public files without authentication
+    if file.is_public:
+        pass
+    else:
+        # For private files, check if user is authenticated and is the owner
+        if not current_user or file.owner_id != current_user.telegram_id:
+            raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
     # Get file content
     file_path = file.storage_path
@@ -155,7 +158,7 @@ async def download_file(
     return FileResponse(
         path=file_path,
         filename=file.filename,
-        media_type=file.mime_type or "application/octet-stream"
+        media_type=file.mime_type if file.mime_type else "application/octet-stream"
     )
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
