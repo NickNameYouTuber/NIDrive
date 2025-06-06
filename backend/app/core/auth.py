@@ -58,6 +58,20 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         )
     return user
 
+# Function to optionally get the current user from the token
+def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Optional[User]:
+    if not token:
+        return None
+    try:
+        payload = verify_token(token)
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        user = db.query(User).filter(User.telegram_id == user_id).first()
+        return user
+    except:
+        return None
+
 # Telegram authentication - hash verification
 def verify_telegram_hash(data: Dict[str, Any]) -> bool:
     """
