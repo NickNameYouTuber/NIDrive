@@ -130,76 +130,63 @@ async def get_file(
     
     return file
 
-# Хранилище токенов доступа к файлам (в памяти, сбрасывается при перезапуске сервера)
-# В реальном приложении лучше использовать Redis или другое хранилище
-file_tokens = {}
-
-@router.post("/{file_id}/get-download-token")
-async def create_download_token(
+# Основной endpoint для скачивания файлов - работает и с публичными, и с приватными файлами
+@router.get("/{file_id}/download")
+async def download_file(
     file_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
-    Create a temporary token for direct file download without authentication
-    """
-    file = get_file_by_id(db, file_id)
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
+    Download file content. Public files can be accessed without authentication.
+    Private files require authentication and owner permissions.
     
-    # Проверка прав доступа - только владелец может создать токен
-    if file.owner_id != current_user.telegram_id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this file")
+    This endpoint is designed to be used with client-side JavaScript for handling downloads:
     
-    # Создаем одноразовый токен для скачивания
-    download_token = str(uuid.uuid4())  # Генерируем уникальный токен
-    
-    # Сохраняем токен с привязкой к файлу и пользователю (действует 5 минут)
-    file_tokens[download_token] = {
-        "file_id": file_id,
-        "expires": datetime.utcnow() + timedelta(minutes=5)
+    ```javascript
+    // Download example
+    let headers = new Headers();
+    if (token) {
+        headers.append('Authorization', `Bearer ${token}`);
     }
     
-    # Создаем прямую ссылку на файл с токеном
-    download_url = f"{settings.PUBLIC_URL}/api/v1/files/direct-download/{download_token}"
-    
-    return {"download_url": download_url}
-
-@router.get("/direct-download/{download_token}")
-async def direct_download(
-    download_token: str,
-    db: Session = Depends(get_db)
-):
+    fetch(fileUrl, { headers })
+        .then(response => {
+            if (!response.ok) throw new Error('Download failed');
+            return response.blob();
+        })
+        .then(blob => {
+            let objectUrl = window.URL.createObjectURL(blob);
+            let anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = filename;
+            document.body.appendChild(anchor);
+            anchor.click();
+            window.URL.revokeObjectURL(objectUrl);
+            document.body.removeChild(anchor);
+        });
+    ```
     """
-    Download file using a temporary token without authentication
-    """
-    # Проверяем наличие токена
-    if download_token not in file_tokens:
-        raise HTTPException(status_code=404, detail="Invalid download link")
-    
-    # Проверяем срок действия токена
-    token_data = file_tokens[download_token]
-    if datetime.utcnow() > token_data["expires"]:
-        # Удаляем просроченный токен
-        del file_tokens[download_token]
-        raise HTTPException(status_code=410, detail="Download link has expired")
-    
     # Получаем файл
-    file_id = token_data["file_id"]
     file = get_file_by_id(db, file_id)
     if not file:
-        # Токен для несуществующего файла - удаляем
-        del file_tokens[download_token]
         raise HTTPException(status_code=404, detail="File not found")
+    
+    # Проверяем доступ
+    if file.is_public:
+        # Публичные файлы доступны всем
+        pass
+    elif current_user and file.owner_id == current_user.telegram_id:
+        # Владельцу разрешено скачивать собственные файлы
+        pass
+    else:
+        # В остальных случаях отказываем в доступе
+        raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
     # Проверяем наличие файла на диске
     file_path = file.storage_path
     if not os.path.exists(file_path):
-        del file_tokens[download_token]
         raise HTTPException(status_code=404, detail="File content not found")
-    
-    # Одноразовый токен - удаляем после использования
-    del file_tokens[download_token]
     
     return FileResponse(
         path=file_path,
@@ -225,33 +212,6 @@ async def download_file(
         raise HTTPException(status_code=403, detail="Not authorized to download this file")
     
     # Проверяем наличие файла на диске
-    file_path = file.storage_path
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File content not found")
-    
-    return FileResponse(
-        path=file_path,
-        filename=file.filename,
-        media_type=file.mime_type if file.mime_type else "application/octet-stream"
-    )
-
-@router.get("/{file_id}/public-download")
-async def download_public_file(
-    file_id: str,
-    db: Session = Depends(get_db)
-):
-    """
-    Download public file content without authentication.
-    """
-    file = get_file_by_id(db, file_id)
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    # Check if the file is public
-    if not file.is_public:
-        raise HTTPException(status_code=403, detail="This file is not public")
-    
-    # Get file content
     file_path = file.storage_path
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File content not found")
@@ -348,20 +308,45 @@ async def get_file_url(
     if file.owner_id != current_user.telegram_id:
         raise HTTPException(status_code=403, detail="Not authorized to view this file's URL")
     
-    # Генерируем одноразовый токен для скачивания
-    download_token = str(uuid.uuid4())
+    # Создаем URL для скачивания
+    download_url = f"{settings.PUBLIC_URL}/api/v1/files/{file_id}/download"
     
-    # Сохраняем токен в хранилище
-    file_tokens[download_token] = {
-        "file_id": file_id,
-        "expires": datetime.utcnow() + timedelta(minutes=60)  # Больше времени для публичной ссылки
-    }
-    
-    # Создаем URL для прямого скачивания
-    download_url = f"{settings.PUBLIC_URL}/api/v1/files/direct-download/{download_token}"
-    
-    return {
+    # Дополнительная информация для фронтенда
+    response = {
         "file_url": download_url,
-        "expires_in_minutes": 60,
-        "is_public": file.is_public
+        "filename": file.filename,
+        "is_public": file.is_public,
+        "js_download_code": """
+// Используйте этот код для скачивания файла без открытия нового окна
+function downloadFile(url, filename, token) {
+  let headers = new Headers();
+  if (token) {
+    headers.append('Authorization', `Bearer ${token}`);
+  }
+  
+  fetch(url, { headers })
+    .then(response => {
+      if (!response.ok) throw new Error('Download failed');
+      return response.blob();
+    })
+    .then(blob => {
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      window.URL.revokeObjectURL(objectUrl);
+      document.body.removeChild(anchor);
+    })
+    .catch(error => console.error('Download error:', error));
+}
+"""
     }
+    
+    # Для приватных файлов предупреждаем, что нужен токен
+    if not file.is_public:
+        response["requires_auth"] = True
+        response["auth_note"] = "Для скачивания необходима аутентификация"
+    
+    return response
