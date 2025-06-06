@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Response, Body
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse as FastAPIFileResponse
 from sqlalchemy.orm import Session
 import os
 import uuid
@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 import shutil
 
-from ..models.schemas import FileCreate, FileResponse, FileUpdate
+from ..models.schemas import FileCreate, FileResponse as FileResponseSchema, FileUpdate
 from ..models.user import User
 from ..models.file import File as FileModel
 from ..core.database import get_db
@@ -188,35 +188,7 @@ async def download_file(
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File content not found")
     
-    return FileResponse(
-        path=file_path,
-        filename=file.filename,
-        media_type=file.mime_type if file.mime_type else "application/octet-stream"
-    )
-
-@router.get("/{file_id}/download")
-async def download_file(
-    file_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Download file content (requires authentication)
-    """
-    file = get_file_by_id(db, file_id)
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    # Проверяем права доступа
-    if file.owner_id != current_user.telegram_id and not file.is_public:
-        raise HTTPException(status_code=403, detail="Not authorized to download this file")
-    
-    # Проверяем наличие файла на диске
-    file_path = file.storage_path
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File content not found")
-    
-    return FileResponse(
+    return FastAPIFileResponse(
         path=file_path,
         filename=file.filename,
         media_type=file.mime_type if file.mime_type else "application/octet-stream"
