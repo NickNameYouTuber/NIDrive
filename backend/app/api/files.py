@@ -23,11 +23,24 @@ router = APIRouter(prefix="/api/v1/files")
 @router.post("", response_model=FileResponse)
 async def upload_file(
     file: UploadFile = File(...),
-    folder_id: Optional[int] = Form(None),
+    folder_id: Optional[str] = Form(None),
     is_public: bool = Form(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Преобразуем folder_id в целое число или None для корневой папки
+    processed_folder_id = None
+    if folder_id:
+        if folder_id.strip() == "":
+            processed_folder_id = None  # Корневая папка
+        else:
+            try:
+                processed_folder_id = int(folder_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="folder_id must be a valid integer or empty for root folder"
+                )
     """
     Upload a new file to user's storage
     """
@@ -70,7 +83,7 @@ async def upload_file(
     # Create file record in database
     file_data = FileCreate(
         filename=file.filename,
-        folder_id=folder_id,
+        folder_id=processed_folder_id,
         is_public=is_public
     )
     return create_file(
