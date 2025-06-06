@@ -1,5 +1,16 @@
 import apiClient from './authService';
 
+// Расширяем типы для import.meta.env (Vite)
+declare global {
+  interface ImportMeta {
+    env: {
+      VITE_API_URL?: string;
+      VITE_TEST_MODE?: string;
+      [key: string]: string | undefined;
+    };
+  }
+}
+
 const API_ENDPOINT = '/api/v1/files';
 const isTestMode = import.meta.env.VITE_TEST_MODE === 'true';
 
@@ -131,7 +142,52 @@ export const fileService = {
     return response.data;
   },
   
-  getDownloadLink: (fileId: number) => {
+  getDownloadLink: (fileId: number | string) => {
     return `${import.meta.env.VITE_API_URL || 'http://localhost:7070'}${API_ENDPOINT}/${fileId}/download`;
+  },
+  
+  // Новый метод для скачивания файлов через Fetch API без открытия нового окна
+  downloadFile: async (fileId: number | string, filename: string) => {
+    try {
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:7070'}${API_ENDPOINT}/${fileId}/download`;
+      
+      // Используем текущий экземпляр apiClient, который уже содержит заголовок авторизации
+      const response = await apiClient.get(url, { responseType: 'blob' });
+      
+      // Создаем объект URL для скачивания
+      const blob = new Blob([response.data]);
+      const objectUrl = URL.createObjectURL(blob);
+      
+      // Создаем ссылку для скачивания
+      const anchor = document.createElement('a');
+      document.body.appendChild(anchor);
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      anchor.click();
+      
+      // Очищаем ресурсы
+      URL.revokeObjectURL(objectUrl);
+      document.body.removeChild(anchor);
+      
+      return true;
+    } catch (error) {
+      console.error('Ошибка при скачивании файла:', error);
+      throw error;
+    }
+  },
+  
+  // Получение публичного URL для файла
+  getPublicUrl: async (fileId: number | string) => {
+    if (isTestMode) {
+      console.log('Test mode: Returning mock public URL');
+      return {
+        file_url: `http://localhost:7070/api/v1/files/${fileId}/download`,
+        filename: 'test-file.txt',
+        is_public: true
+      };
+    }
+    
+    const response = await apiClient.get(`${API_ENDPOINT}/${fileId}/public-url`);
+    return response.data;
   }
 };

@@ -16,13 +16,19 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Button
+  TextField,
+  Button,
+  Tooltip,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import GetAppIcon from '@mui/icons-material/GetApp';
+import LinkIcon from '@mui/icons-material/Link';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import ImageIcon from '@mui/icons-material/Image';
@@ -46,6 +52,14 @@ interface FileItemProps {
 const FileItem: React.FC<FileItemProps> = ({ file, onDeleteFile, onToggleVisibility }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [publicUrlDialogOpen, setPublicUrlDialogOpen] = useState(false);
+  const [publicUrlData, setPublicUrlData] = useState<{
+    file_url: string;
+    filename: string;
+    is_public: boolean;
+    requires_auth?: boolean;
+  } | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
   
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -70,9 +84,41 @@ const FileItem: React.FC<FileItemProps> = ({ file, onDeleteFile, onToggleVisibil
     await onToggleVisibility(file.id, !file.is_public);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     handleMenuClose();
-    window.open(fileService.getDownloadLink(file.id), '_blank');
+    try {
+      await fileService.downloadFile(file.id, file.filename);
+    } catch (error) {
+      console.error('Ошибка при скачивании:', error);
+      alert(`Ошибка при скачивании ${file.filename}`);
+    }
+  };
+  
+  // Добавляем обработчик для получения публичной ссылки
+  const handleGetPublicUrl = async () => {
+    handleMenuClose();
+    try {
+      const urlData = await fileService.getPublicUrl(file.id);
+      setPublicUrlData(urlData);
+      setPublicUrlDialogOpen(true);
+    } catch (error) {
+      console.error('Ошибка при получении публичной ссылки:', error);
+      alert('Не удалось получить публичную ссылку');
+    }
+  };
+  
+  // Копирование ссылки в буфер обмена
+  const copyToClipboard = () => {
+    if (publicUrlData?.file_url) {
+      navigator.clipboard.writeText(publicUrlData.file_url)
+        .then(() => {
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 3000);
+        })
+        .catch(err => {
+          console.error('Ошибка при копировании:', err);
+        });
+    }
   };
 
   // Get file icon based on MIME type
@@ -175,6 +221,13 @@ const FileItem: React.FC<FileItemProps> = ({ file, onDeleteFile, onToggleVisibil
             {file.is_public ? 'Make Private' : 'Make Public'}
           </ListItemText>
         </MenuItem>
+        {/* Новый пункт меню для получения публичной ссылки */}
+        <MenuItem onClick={handleGetPublicUrl}>
+          <ListItemIcon>
+            <LinkIcon />
+          </ListItemIcon>
+          <ListItemText>Get Download Link</ListItemText>
+        </MenuItem>
         <MenuItem onClick={handleDownload}>
           <ListItemIcon>
             <GetAppIcon />
@@ -202,9 +255,89 @@ const FileItem: React.FC<FileItemProps> = ({ file, onDeleteFile, onToggleVisibil
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmDelete} color="error">Delete</Button>
+          <Button onClick={handleConfirmDelete} color="error" autoFocus>
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Диалоговое окно для отображения ссылки на скачивание */}
+      <Dialog
+        open={publicUrlDialogOpen}
+        onClose={() => setPublicUrlDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {publicUrlData?.is_public ? "Public Download Link" : "Direct Download Link"}
+        </DialogTitle>
+        <DialogContent>
+          {publicUrlData?.requires_auth && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              This is a private file. A direct download link has been generated that will work with your current authentication.
+            </Alert>
+          )}
+          
+          <DialogContentText sx={{ mb: 2 }}>
+            You can use this link to download {publicUrlData?.filename}:
+          </DialogContentText>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <TextField
+              fullWidth
+              value={publicUrlData?.file_url || ''}
+              variant="outlined"
+              InputProps={{
+                readOnly: true,
+              }}
+            />
+            <Tooltip title="Copy link">
+              <Button 
+                onClick={copyToClipboard} 
+                startIcon={<ContentCopyIcon />}
+                sx={{ ml: 1 }}
+              >
+                Copy
+              </Button>
+            </Tooltip>
+          </Box>
+          
+          <DialogContentText variant="body2">
+            You can also use the button below to download the file directly:
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={async () => {
+              try {
+                if (publicUrlData?.file_url && publicUrlData?.filename) {
+                  await fileService.downloadFile(file.id, publicUrlData.filename);
+                }
+              } catch (error) {
+                console.error('Ошибка при скачивании:', error);
+              }
+            }}
+            color="primary"
+            startIcon={<GetAppIcon />}
+          >
+            Download
+          </Button>
+          <Button onClick={() => setPublicUrlDialogOpen(false)} color="primary">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Уведомление о успешном копировании */}
+      <Snackbar
+        open={copySuccess}
+        autoHideDuration={3000}
+        onClose={() => setCopySuccess(false)}
+      >
+        <Alert onClose={() => setCopySuccess(false)} severity="success" sx={{ width: '100%' }}>
+          Link copied to clipboard!
+        </Alert>
+      </Snackbar>
     </Card>
   );
 };
