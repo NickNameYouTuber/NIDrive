@@ -186,5 +186,21 @@ export const folderService = {
     
     await apiClient.delete(`${API_ENDPOINT}/${folderId}`);
     return true;
+  },
+  
+  // Получение недавних папок
+  getRecentFolders: async () => {
+    if (isTestMode) {
+      console.log('Test mode: Getting recent folders');
+      return testFolders.slice(0, 5); // Возвращаем первые 5 папок как недавние
+    }
+
+    try {
+      const response = await apiClient.get('/api/v1/folders/recent');
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при получении недавних папок:', error);
+      throw error;
+    }
   }
 };

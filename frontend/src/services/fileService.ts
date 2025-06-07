@@ -189,5 +189,47 @@ export const fileService = {
     
     const response = await apiClient.get(`${API_ENDPOINT}/${fileId}/public-url`);
     return response.data;
+  },
+  
+  // Получение недавних файлов
+  getRecentFiles: async () => {
+    if (isTestMode) {
+      console.log('Test mode: Getting recent files');
+      return testFiles.slice(0, 5); // Возвращаем первые 5 файлов как недавние
+    }
+
+    try {
+      const response = await apiClient.get('/api/v1/files/recent');
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при получении недавних файлов:', error);
+      throw error;
+    }
+  },
+  
+  // Поиск файлов
+  searchFiles: async (query: string, filters: any = {}) => {
+    if (isTestMode) {
+      console.log('Test mode: Searching files', query, filters);
+      return testFiles.filter(f => 
+        f.filename.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+
+    try {
+      // Формируем параметры запроса
+      let params: any = { query };
+      
+      if (filters.type) params.file_type = filters.type;
+      if (filters.dateFrom) params.date_from = filters.dateFrom;
+      if (filters.dateTo) params.date_to = filters.dateTo;
+      if (filters.isPublic !== undefined) params.is_public = filters.isPublic;
+      
+      const response = await apiClient.get('/api/v1/files/search', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при поиске файлов:', error);
+      throw error;
+    }
   }
 };

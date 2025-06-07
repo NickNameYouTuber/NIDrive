@@ -138,3 +138,62 @@ def toggle_file_visibility(db: Session, file_id: int, is_public: bool, public_ur
     """Toggle file visibility between public and private"""
     update_data = FileUpdate(is_public=is_public)
     return update_file(db, file_id, update_data, public_url_base)
+
+
+def search_files(db: Session, owner_id: str, query: str, file_type: str = None, 
+                date_from: str = None, date_to: str = None, is_public: bool = None):
+    """
+    Search for files based on name and optional filters
+    """
+    search = f"%{query}%"
+    
+    # Base query for user's non-deleted files
+    file_query = db.query(File).filter(
+        File.owner_id == owner_id,
+        File.is_deleted == False,
+        File.filename.ilike(search)
+    )
+    
+    # Apply filters if provided
+    if file_type:
+        if file_type == "image":
+            file_query = file_query.filter(File.mime_type.ilike("image/%"))
+        elif file_type == "document":
+            file_query = file_query.filter(or_(
+                File.mime_type.ilike("application/pdf"),
+                File.mime_type.ilike("application/msword"),
+                File.mime_type.ilike("application/vnd.openxmlformats-officedocument%"),
+                File.mime_type.ilike("text/%")
+            ))
+        elif file_type == "video":
+            file_query = file_query.filter(File.mime_type.ilike("video/%"))
+        elif file_type == "audio":
+            file_query = file_query.filter(File.mime_type.ilike("audio/%"))
+        elif file_type == "archive":
+            file_query = file_query.filter(or_(
+                File.mime_type.ilike("application/zip"),
+                File.mime_type.ilike("application/x-rar-%"),
+                File.mime_type.ilike("application/x-tar"),
+                File.mime_type.ilike("application/gzip")
+            ))
+            
+    if date_from:
+        file_query = file_query.filter(func.date(File.created_at) >= date_from)
+        
+    if date_to:
+        file_query = file_query.filter(func.date(File.created_at) <= date_to)
+        
+    if is_public is not None:
+        file_query = file_query.filter(File.is_public == is_public)
+    
+    return file_query.order_by(File.created_at.desc()).all()
+    
+
+def get_recent_files(db: Session, owner_id: str, limit: int = 10):
+    """
+    Get the most recently created/modified files for a user
+    """
+    return db.query(File).filter(
+        File.owner_id == owner_id,
+        File.is_deleted == False
+    ).order_by(File.created_at.desc()).limit(limit).all()
