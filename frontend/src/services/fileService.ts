@@ -61,7 +61,14 @@ export const fileService = {
   async getFiles(folderId: number | null) {
     if (isTestMode) {
       // Mock data in test mode
-      return testFiles.filter(f => f.folder_id === folderId);
+      // Для корневой папки (folderId === null) возвращаем файлы где folder_id === null
+      if (folderId === null) {
+        // Для корневой папки ищем файлы с folder_id === null
+        return testFiles.filter(f => f.folder_id === null);
+      } else {
+        // Для обычных папок фильтруем по ID папки
+        return testFiles.filter(f => f.folder_id === folderId);
+      }
     }
 
     try {
