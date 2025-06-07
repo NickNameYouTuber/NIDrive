@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-// Базовый URL для API
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Базовый URL для API - сделаем более универсальным с настраиваемыми вариантами
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+                     import.meta.env.VITE_API_BASE_URL || 
+                     'https://drive.nicorp.tech/api' || 
+                     'http://localhost:7070';
+
+console.log('Using API Base URL:', API_BASE_URL);
 
 // Создаем инстанс axios с базовыми настройками
 const apiClient = axios.create({
@@ -33,7 +38,7 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-    if (error.response.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const refreshToken = localStorage.getItem('refresh_token');

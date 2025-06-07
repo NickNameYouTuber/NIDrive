@@ -7,11 +7,11 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 export type ViewMode = 'grid' | 'list' | 'large';
 
 interface ViewToggleProps {
-  currentView: ViewMode;
+  viewMode: ViewMode;
   onViewChange: (view: ViewMode) => void;
 }
 
-const ViewToggle: React.FC<ViewToggleProps> = ({ currentView, onViewChange }) => {
+const ViewToggle: React.FC<ViewToggleProps> = ({ viewMode, onViewChange }) => {
   const handleViewChange = (
     event: React.MouseEvent<HTMLElement>,
     newView: ViewMode | null
@@ -24,7 +24,7 @@ const ViewToggle: React.FC<ViewToggleProps> = ({ currentView, onViewChange }) =>
   return (
     <Box>
       <ToggleButtonGroup
-        value={currentView}
+        value={viewMode}
         exclusive
         onChange={handleViewChange}
         aria-label="view mode"
