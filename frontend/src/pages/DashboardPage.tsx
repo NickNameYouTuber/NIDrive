@@ -7,6 +7,9 @@ import FolderIcon from '@mui/icons-material/Folder';
 import StorageIcon from '@mui/icons-material/Storage';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
+import { fileService } from '../services/fileService';
+import { folderService } from '../services/folderService';
+import RecentItems from '../components/storage/RecentItems';
 
 interface UserStats {
   total_files: number;
@@ -20,6 +23,9 @@ const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [recentFiles, setRecentFiles] = useState<any[]>([]);
+  const [recentFolders, setRecentFolders] = useState<any[]>([]);
+  const [recentItemsLoading, setRecentItemsLoading] = useState<boolean>(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,7 +41,25 @@ const DashboardPage: React.FC = () => {
       }
     };
 
+    const fetchRecentItems = async () => {
+      setRecentItemsLoading(true);
+      try {
+        const [filesData, foldersData] = await Promise.all([
+          fileService.getRecentFiles(6),
+          folderService.getRecentFolders(6)
+        ]);
+        
+        setRecentFiles(filesData);
+        setRecentFolders(foldersData);
+      } catch (error) {
+        console.error('Error fetching recent items:', error);
+      } finally {
+        setRecentItemsLoading(false);
+      }
+    };
+
     fetchStats();
+    fetchRecentItems();
   }, []);
 
   const formatStorage = (size: number) => {
@@ -46,6 +70,28 @@ const DashboardPage: React.FC = () => {
     } else {
       return `${Math.round(size / 102.4) / 10} GB`;
     }
+  };
+
+  // Обработчики кликов по недавним элементам
+  const handleRecentFileClick = (file: any) => {
+    // Открываем файл или переходим в папку
+    if (file.folder_id !== null) {
+      navigate(`/storage/${file.folder_id}`);
+    } else {
+      navigate('/storage');
+    }
+  };
+  
+  const handleFolderClick = (id: number | null) => {
+    if (id === null) {
+      navigate('/storage');
+    } else {
+      navigate(`/storage/${id}`);
+    }
+  };
+  
+  const handleViewAllRecent = () => {
+    navigate('/storage');
   };
 
   if (loading) {
@@ -172,6 +218,18 @@ const DashboardPage: React.FC = () => {
           </Grid>
         </Grid>
       </Paper>
+
+      {/* Недавние элементы */}
+      <Box sx={{ mt: 4 }}>
+        <RecentItems
+          recentFiles={recentFiles}
+          recentFolders={recentFolders}
+          onFileClick={handleRecentFileClick}
+          onFolderClick={handleFolderClick}
+          onViewAllClick={handleViewAllRecent}
+          isLoading={recentItemsLoading}
+        />
+      </Box>
     </Box>
   );
 };

@@ -10,6 +10,7 @@ import {
   CardMedia,
   CardContent,
   CardActionArea,
+  CircularProgress,
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
@@ -42,8 +43,9 @@ interface RecentItemsProps {
   recentFiles: RecentFile[];
   recentFolders: RecentFolder[];
   onFileClick: (file: RecentFile) => void;
-  onFolderClick: (folderId: number) => void;
+  onFolderClick: (folderId: number | null) => void;
   onViewAllClick: () => void;
+  isLoading?: boolean;
 }
 
 const RecentItems: React.FC<RecentItemsProps> = ({
@@ -52,6 +54,7 @@ const RecentItems: React.FC<RecentItemsProps> = ({
   onFileClick,
   onFolderClick,
   onViewAllClick,
+  isLoading = false,
 }) => {
   // Сортировка всех элементов по дате создания
   const allItems = [
@@ -105,8 +108,18 @@ const RecentItems: React.FC<RecentItemsProps> = ({
           </IconButton>
         </Tooltip>
       </Box>
-
-      {allItems.length > 0 ? (
+      
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : allItems.length === 0 ? (
+        <Box sx={{ py: 3 }}>
+          <Typography variant="body1" color="textSecondary" sx={{ textAlign: 'center' }}>
+            No recent items found
+          </Typography>
+        </Box>
+      ) : (
         <Grid container spacing={2}>
           {allItems.map((item) => (
             <Grid item xs={12} sm={6} md={4} lg={2} key={`${item.type}-${item.id}`}>
@@ -176,12 +189,6 @@ const RecentItems: React.FC<RecentItemsProps> = ({
             </Grid>
           ))}
         </Grid>
-      ) : (
-        <Box sx={{ p: 2, textAlign: 'center' }}>
-          <Typography variant="body1" color="text.secondary">
-            Нет недавних элементов
-          </Typography>
-        </Box>
       )}
     </Paper>
   );

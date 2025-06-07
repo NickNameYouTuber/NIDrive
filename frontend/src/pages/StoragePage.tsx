@@ -5,7 +5,6 @@ import { fileService } from '../services/fileService';
 import { folderService } from '../services/folderService';
 import FileExplorer from '../components/storage/FileExplorer';
 import FileUploader from '../components/storage/FileUploader';
-import RecentItems from '../components/storage/RecentItems';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
 
@@ -28,35 +27,10 @@ const StoragePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [filesUpdateTrigger, setFilesUpdateTrigger] = useState<number>(0);
   const currentFolderId = folderId ? parseInt(folderId, 10) : null;
-  const [recentFiles, setRecentFiles] = useState<any[]>([]);
-  const [recentFolders, setRecentFolders] = useState<any[]>([]);
-  const [recentItemsLoading, setRecentItemsLoading] = useState<boolean>(false);
   
   // Функция для обновления списка файлов
   const refreshFiles = () => {
     setFilesUpdateTrigger(prev => prev + 1);
-    // При добавлении новых файлов также обновляем список недавних элементов
-    fetchRecentItems();
-  };
-  
-  // Получаем недавние файлы и папки
-  const fetchRecentItems = async () => {
-    if (currentFolderId !== null) return; // Показываем недавние элементы только на главной странице
-    
-    setRecentItemsLoading(true);
-    try {
-      const [filesData, foldersData] = await Promise.all([
-        fileService.getRecentFiles(8),
-        folderService.getRecentFolders(8)
-      ]);
-      
-      setRecentFiles(filesData);
-      setRecentFolders(foldersData);
-    } catch (error) {
-      console.error('Error fetching recent items:', error);
-    } finally {
-      setRecentItemsLoading(false);
-    }
   };
 
   useEffect(() => {
@@ -70,8 +44,6 @@ const StoragePage: React.FC = () => {
         } else {
           setCurrentFolder(null);
           setBreadcrumbs([{ id: null, name: 'Root' }]);
-          // Загружаем недавние элементы только когда находимся в корневой директории
-          fetchRecentItems();
         }
       } catch (error) {
         console.error('Error fetching folder data:', error);
@@ -124,29 +96,6 @@ const StoragePage: React.FC = () => {
       navigate(`/storage/${id}`);
     }
   };
-  
-  // Обработка клика по недавнему файлу
-  const handleRecentFileClick = (file: any) => {
-    // Если файл находится в папке, переходим в эту папку
-    if (file.folder_id !== null) {
-      navigate(`/storage/${file.folder_id}`);
-    } else {
-      // Иначе просто переходим в корневой каталог
-      navigate('/storage');
-    }
-    
-    // Здесь можно добавить логику предпросмотра или скачивания файла
-    // Например, открыть модальное окно с предпросмотром
-  };
-  
-  // Обработка клика "Показать все недавние"
-  const handleViewAllRecent = () => {
-    // Для простоты сейчас просто переходим в корневую директорию
-    navigate('/storage');
-    
-    // В будущем можно реализовать отдельную страницу или режим отображения всех недавних файлов
-    // navigate('/storage/recent');
-  };
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -160,17 +109,6 @@ const StoragePage: React.FC = () => {
       <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
       
       <Divider sx={{ my: 3 }} />
-      
-      {/* Недавние элементы - показываем только на главной странице */}
-      {currentFolderId === null && (
-        <RecentItems 
-          recentFiles={recentFiles}
-          recentFolders={recentFolders}
-          onFileClick={handleRecentFileClick}
-          onFolderClick={handleBreadcrumbClick}
-          onViewAllClick={handleViewAllRecent}
-        />
-      )}
 
       {/* Breadcrumb Navigation */}
       <Paper sx={{ p: 2, mb: 3, borderRadius: 1 }} elevation={1}>
