@@ -1,48 +1,76 @@
-import React from 'react';
-import { Box, Typography, Button, Container } from '@mui/material';
+import React, { useEffect } from 'react';
+import { Box, Typography, Button, Container, keyframes } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+// Анимация горящей кнопки
+const flameAnimation = keyframes`
+  0% { text-shadow: 0 0 5px #ff5722, 0 0 10px #ff5722, 0 0 15px #ff9800, 0 0 20px #ff9800; }
+  50% { text-shadow: 0 0 10px #ff5722, 0 0 20px #ff5722, 0 0 30px #ff9800, 0 0 40px #ff9800; }
+  100% { text-shadow: 0 0 5px #ff5722, 0 0 10px #ff5722, 0 0 15px #ff9800, 0 0 20px #ff9800; }
+`;
+
+const buttonHoverAnimation = keyframes`
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+`;
 
 const NotFoundPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   
+  // Убираем скроллбар для этой страницы
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+  
   return (
-    <Container disableGutters maxWidth={false} sx={{ height: 'calc(100vh - 64px)', position: 'relative' }}>
+    <Container 
+      disableGutters 
+      maxWidth={false} 
+      sx={{ 
+        height: '100vh', 
+        width: '100vw',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 9999
+      }}
+    >
       <Box
         sx={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           height: '100%',
-          textAlign: 'center',
+          width: '100%',
           backgroundImage: `url('/this-is-fine-this-is-fine-dog-meme.gif')`,
-          backgroundSize: 'cover',
+          backgroundSize: 'auto 100%',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           position: 'relative',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 1
-          }
+          pt: '10vh',
+          pb: '15vh'
         }}
       >
         <Typography 
           variant="h1" 
           gutterBottom
           sx={{ 
-            fontFamily: '"Impact", sans-serif',
-            color: 'white',
-            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.5)',
+            fontFamily: '"Comic Sans MS", cursive, sans-serif',
+            color: '#FFD700',
+            WebkitTextStroke: '2px black',
+            textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000',
             position: 'relative',
             zIndex: 2,
-            fontSize: { xs: '3rem', sm: '5rem', md: '7rem' }
+            fontSize: { xs: '4rem', sm: '6rem', md: '8rem' },
+            mb: 6,
+            letterSpacing: '0.05em',
+            transform: 'rotate(-5deg)'
           }}
         >
           404 I'm Fine
@@ -54,15 +82,23 @@ const NotFoundPage: React.FC = () => {
           component={RouterLink}
           to={isAuthenticated ? '/dashboard' : '/'}
           sx={{ 
-            mt: 4, 
-            position: 'relative', 
+            position: 'relative',
             zIndex: 2,
-            backgroundColor: 'primary.main',
-            '&:hover': { backgroundColor: 'primary.dark' },
+            backgroundColor: '#ff5722',
             color: 'white',
-            px: 4,
-            py: 1.5,
-            fontSize: '1.2rem'
+            px: 6,
+            py: 2,
+            fontSize: '1.5rem',
+            fontWeight: 'bold',
+            borderRadius: '8px',
+            animation: `${flameAnimation} 2s infinite`,
+            boxShadow: '0 0 20px 5px rgba(255, 87, 34, 0.7)',
+            border: '2px solid #ff9800',
+            '&:hover': {
+              backgroundColor: '#ff9800',
+              animation: `${flameAnimation} 1s infinite, ${buttonHoverAnimation} 1s infinite`,
+            },
+            transition: 'all 0.3s ease'
           }}
         >
           {isAuthenticated ? 'Go to Dashboard' : 'Go to Home Page'}
