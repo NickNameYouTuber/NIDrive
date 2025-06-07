@@ -114,6 +114,24 @@ export const folderService = {
     return response.data;
   },
   
+  getRecentFolders: async (limit = 10) => {
+    if (isTestMode) {
+      console.log('Test mode: Returning recent test folders');
+      return [...testFolders]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, limit);
+    }
+    
+    try {
+      const response = await apiClient.get(`${API_ENDPOINT}/recent?limit=${limit}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching recent folders:', error);
+      // Если API недоступен, возвращаем пустой массив
+      return [];
+    }
+  },
+  
   getFolderTree: async () => {
     if (isTestMode) {
       console.log('Test mode: Returning test folder tree');

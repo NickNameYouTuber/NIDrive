@@ -58,20 +58,42 @@ const testFiles = [
 ];
 
 export const fileService = {
-  getFiles: async (folderId = null) => {
+  async getFiles(folderId: number | null) {
     if (isTestMode) {
-      console.log('Test mode: Returning test files');
-      return testFiles.filter(file => file.folder_id === folderId);
+      // Mock data in test mode
+      return testFiles.filter(f => f.folder_id === folderId);
     }
-    
-    const url = folderId !== null 
-      ? `${API_ENDPOINT}?folder_id=${folderId}` 
-      : API_ENDPOINT;
-    const response = await apiClient.get(url);
-    return response.data;
+
+    try {
+      const response = await apiClient.get(
+        `${API_ENDPOINT}${folderId ? `?folder_id=${folderId}` : ''}`
+      );
+      return response.data.files;
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      throw error;
+    }
   },
   
-  getFile: async (fileId: number) => {
+  async getRecentFiles(limit = 10) {
+    if (isTestMode) {
+      // Mock data in test mode - sort by created_at date descending
+      return [...testFiles]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, limit);
+    }
+
+    try {
+      const response = await apiClient.get(`${API_ENDPOINT}/recent?limit=${limit}`);
+      return response.data.files;
+    } catch (error) {
+      console.error('Error fetching recent files:', error);
+      // Если API недоступен, возвращаем пустой массив вместо ошибки
+      return [];
+    }
+  },
+  
+  async getFile(fileId: number) {
     if (isTestMode) {
       console.log('Test mode: Returning test file');
       const file = testFiles.find(f => f.id === fileId);
