@@ -131,17 +131,17 @@ const StoragePage: React.FC = () => {
         </Breadcrumbs>
       </Paper>
 
-      {/* File Uploader */}
-      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
-      
-      <Divider sx={{ my: 3 }} />
-      
       {/* File Explorer */}
       <FileExplorer 
         currentFolderId={currentFolderId} 
         isLoading={isLoading}
         updateTrigger={filesUpdateTrigger}
       />
+      
+      <Divider sx={{ my: 3 }} />
+      
+      {/* File Uploader - перемещено вниз */}
+      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
     </Box>
   );
 };

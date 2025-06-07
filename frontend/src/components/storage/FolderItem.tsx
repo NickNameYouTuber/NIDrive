@@ -241,13 +241,11 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
           </Typography>
         </CardContent>
       )}
-      <CardActions>
-        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
-          <IconButton onClick={handleMenuClick}>
-            <MoreVertIcon />
-          </IconButton>
-        </Box>
-      </CardActions>
+      {viewMode === 'list' || (
+        <CardActions sx={{ justifyContent: 'flex-end', p: viewMode === 'compact' ? '0 8px 8px' : undefined }}>
+          {/* Здесь могут быть дополнительные действия, но убираем лишнюю кнопку с троеточием */}
+        </CardActions>
+      )}
 
       {/* Menu */}
       <Menu

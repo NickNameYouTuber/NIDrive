@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -19,7 +19,16 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Tooltip,
-  Divider
+  Divider,
+  InputAdornment,
+  IconButton,
+  Select,
+  FormControl,
+  InputLabel,
+  OutlinedInput,
+  FormGroup,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
@@ -27,6 +36,12 @@ import GridViewIcon from '@mui/icons-material/GridView';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewComfyIcon from '@mui/icons-material/ViewComfy';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
+import SortIcon from '@mui/icons-material/Sort';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { fileService } from '../../services/fileService';
 import { folderService } from '../../services/folderService';
 import FileItem from './FileItem';
@@ -54,6 +69,19 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
   // New folder dialog
   const [newFolderOpen, setNewFolderOpen] = useState<boolean>(false);
   const [newFolderName, setNewFolderName] = useState<string>('');
+
+  // Search and filters
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterMenuAnchor, setFilterMenuAnchor] = useState<null | HTMLElement>(null);
+  const [sortMenuAnchor, setSortMenuAnchor] = useState<null | HTMLElement>(null);
+  
+  // Filter options
+  type FileType = 'image' | 'document' | 'video' | 'audio' | 'other' | 'all';
+  const [fileTypeFilter, setFileTypeFilter] = useState<FileType>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'size'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [showPublicOnly, setShowPublicOnly] = useState<boolean>(false);
+  const [showPrivateOnly, setShowPrivateOnly] = useState<boolean>(false);
   
   // Fetch files and folders data
   useEffect(() => {
@@ -140,6 +168,99 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
     }
   };
 
+  // Determine file type based on MIME type
+  const getFileType = (mimeType: string): FileType => {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (
+      mimeType.startsWith('text/') || 
+      mimeType === 'application/pdf' || 
+      mimeType.includes('document') || 
+      mimeType.includes('spreadsheet') || 
+      mimeType.includes('presentation')
+    ) return 'document';
+    return 'other';
+  };
+
+  // Filter and sort logic
+  const handleFilterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setFilterMenuAnchor(event.currentTarget);
+  };
+
+  const handleSortClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setSortMenuAnchor(event.currentTarget);
+  };
+
+  const handleFilterClose = () => {
+    setFilterMenuAnchor(null);
+  };
+
+  const handleSortClose = () => {
+    setSortMenuAnchor(null);
+  };
+
+  const handleSortChange = (sortType: 'name' | 'date' | 'size', direction: 'asc' | 'desc') => {
+    setSortBy(sortType);
+    setSortDirection(direction);
+    handleSortClose();
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+  };
+
+  // Apply filters and sorting to the files
+  const filteredFiles = useMemo(() => {
+    return files.filter(file => {
+      // Apply search filter
+      const matchesSearch = searchQuery === '' || 
+        file.filename.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // Apply file type filter
+      const matchesFileType = fileTypeFilter === 'all' || 
+        getFileType(file.mime_type) === fileTypeFilter;
+      
+      // Apply visibility filter
+      const matchesVisibility = 
+        (!showPublicOnly && !showPrivateOnly) || // No filter
+        (showPublicOnly && file.is_public) || 
+        (showPrivateOnly && !file.is_public);
+      
+      return matchesSearch && matchesFileType && matchesVisibility;
+    }).sort((a, b) => {
+      // Apply sorting
+      if (sortBy === 'name') {
+        return sortDirection === 'asc' 
+          ? a.filename.localeCompare(b.filename)
+          : b.filename.localeCompare(a.filename);
+      } else if (sortBy === 'date') {
+        return sortDirection === 'asc'
+          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      } else { // size
+        return sortDirection === 'asc'
+          ? a.size_mb - b.size_mb
+          : b.size_mb - a.size_mb;
+      }
+    });
+  }, [files, searchQuery, fileTypeFilter, showPublicOnly, showPrivateOnly, sortBy, sortDirection]);
+
+  // We don't filter folders, just sort them
+  const sortedFolders = useMemo(() => {
+    return [...folders].sort((a, b) => {
+      if (sortBy === 'name') {
+        return sortDirection === 'asc' 
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name);
+      } else { // date
+        return sortDirection === 'asc'
+          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+  }, [folders, sortBy, sortDirection]);
+
   if (isLoading || localLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
@@ -150,15 +271,70 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
 
   return (
     <Box>
-      {/* Header with actions */}
+      {/* Navigation path and search/filter controls */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Typography variant="h6">
-          {folders.length === 0 && files.length === 0 
-            ? 'No files or folders' 
-            : `${folders.length} folder${folders.length !== 1 ? 's' : ''}, ${files.length} file${files.length !== 1 ? 's' : ''}`}
-        </Typography>
-        
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexGrow: 1 }}>
+          {/* Navigation path (moved from below) */}
+          <Typography variant="h6" component="div" sx={{ mr: 2 }}>
+            Storage
+          </Typography>
+          <Button
+            variant="text"
+            onClick={() => navigate('/storage')}
+            sx={{ textTransform: 'none' }}
+          >
+            Root
+          </Button>
+          {currentFolderId !== null && (
+            <Typography variant="body1" sx={{ mx: 1 }}>
+              {/* Here would go breadcrumbs if we implement a path */}
+              {/* For now just showing Root ---- */}
+              ----
+            </Typography>
+          )}
+        </Box>
+
+        {/* Search component */}
+        <FormControl sx={{ minWidth: 200, maxWidth: 300, flexGrow: 1 }}>
+          <OutlinedInput
+            placeholder="Search files..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="small"
+            startAdornment={
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            }
+            endAdornment={
+              searchQuery ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={clearSearch}
+                    edge="end"
+                    size="small"
+                  >
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null
+            }
+          />
+        </FormControl>
+
+        {/* Filters and sort buttons */}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Sort files">
+            <IconButton onClick={handleSortClick}>
+              <SortIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Filter files">
+            <IconButton onClick={handleFilterClick}>
+              <FilterListIcon />
+            </IconButton>
+          </Tooltip>
+          
           {/* View mode toggle */}
           <Tooltip title="Switch view mode">
             <ToggleButtonGroup
@@ -190,25 +366,154 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
               </ToggleButton>
             </ToggleButtonGroup>
           </Tooltip>
-          
-          <Divider orientation="vertical" flexItem />
-          
-          <Button 
-            variant="contained" 
-            startIcon={<CreateNewFolderIcon />}
-            onClick={() => setNewFolderOpen(true)}
-          >
-            New Folder
-          </Button>
         </Box>
       </Box>
+      
+      {/* Action buttons bar */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        {/* Stats about files and folders */}
+        <Typography variant="body2" color="text.secondary">
+          {folders.length === 0 && filteredFiles.length === 0 
+            ? 'No files or folders' 
+            : `${sortedFolders.length} folder${sortedFolders.length !== 1 ? 's' : ''}, ${filteredFiles.length} file${filteredFiles.length !== 1 ? 's' : ''}`}
+        </Typography>
+        
+        <Button 
+          variant="contained" 
+          startIcon={<CreateNewFolderIcon />}
+          onClick={() => setNewFolderOpen(true)}
+          size="small"
+        >
+          New Folder
+        </Button>
+      </Box>
+
+      {/* Filter and Sort Menus */}
+      <Menu
+        anchorEl={filterMenuAnchor}
+        open={Boolean(filterMenuAnchor)}
+        onClose={handleFilterClose}
+        sx={{ mt: 1 }}
+      >
+        <Box sx={{ px: 2, py: 1 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>File Type</Typography>
+          <FormControl size="small" fullWidth variant="outlined" sx={{ mb: 2 }}>
+            <InputLabel>Type</InputLabel>
+            <Select
+              value={fileTypeFilter}
+              onChange={(e) => setFileTypeFilter(e.target.value as FileType)}
+              label="Type"
+              size="small"
+            >
+              <MenuItem value="all">All Files</MenuItem>
+              <MenuItem value="image">Images</MenuItem>
+              <MenuItem value="document">Documents</MenuItem>
+              <MenuItem value="video">Videos</MenuItem>
+              <MenuItem value="audio">Audio</MenuItem>
+              <MenuItem value="other">Other</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Visibility</Typography>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showPublicOnly}
+                  onChange={(e) => {
+                    setShowPublicOnly(e.target.checked);
+                    if (e.target.checked) setShowPrivateOnly(false);
+                  }}
+                  size="small"
+                  icon={<VisibilityOffIcon fontSize="small" />}
+                  checkedIcon={<VisibilityIcon fontSize="small" />}
+                />
+              }
+              label="Show Public Only"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showPrivateOnly}
+                  onChange={(e) => {
+                    setShowPrivateOnly(e.target.checked);
+                    if (e.target.checked) setShowPublicOnly(false);
+                  }}
+                  size="small"
+                  icon={<VisibilityIcon fontSize="small" />}
+                  checkedIcon={<VisibilityOffIcon fontSize="small" />}
+                />
+              }
+              label="Show Private Only"
+            />
+          </FormGroup>
+        </Box>
+      </Menu>
+
+      <Menu
+        anchorEl={sortMenuAnchor}
+        open={Boolean(sortMenuAnchor)}
+        onClose={handleSortClose}
+        sx={{ mt: 1 }}
+      >
+        <MenuItem onClick={() => handleSortChange('name', 'asc')}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+            Name (A-Z)
+            {sortBy === 'name' && sortDirection === 'asc' && (
+              <Box component="span" sx={{ ml: 1, color: 'primary.main' }}>✓</Box>
+            )}
+          </Box>
+        </MenuItem>
+        <MenuItem onClick={() => handleSortChange('name', 'desc')}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+            Name (Z-A)
+            {sortBy === 'name' && sortDirection === 'desc' && (
+              <Box component="span" sx={{ ml: 1, color: 'primary.main' }}>✓</Box>
+            )}
+          </Box>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => handleSortChange('date', 'desc')}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+            Newest First
+            {sortBy === 'date' && sortDirection === 'desc' && (
+              <Box component="span" sx={{ ml: 1, color: 'primary.main' }}>✓</Box>
+            )}
+          </Box>
+        </MenuItem>
+        <MenuItem onClick={() => handleSortChange('date', 'asc')}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+            Oldest First
+            {sortBy === 'date' && sortDirection === 'asc' && (
+              <Box component="span" sx={{ ml: 1, color: 'primary.main' }}>✓</Box>
+            )}
+          </Box>
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => handleSortChange('size', 'desc')}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+            Largest First
+            {sortBy === 'size' && sortDirection === 'desc' && (
+              <Box component="span" sx={{ ml: 1, color: 'primary.main' }}>✓</Box>
+            )}
+          </Box>
+        </MenuItem>
+        <MenuItem onClick={() => handleSortChange('size', 'asc')}>
+          <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+            Smallest First
+            {sortBy === 'size' && sortDirection === 'asc' && (
+              <Box component="span" sx={{ ml: 1, color: 'primary.main' }}>✓</Box>
+            )}
+          </Box>
+        </MenuItem>
+      </Menu>
 
       {/* Folders grid */}
-      {folders.length > 0 && (
+      {sortedFolders.length > 0 && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>Folders</Typography>
           <Grid container spacing={2}>
-            {folders.map((folder) => (
+            {sortedFolders.map((folder) => (
               <Grid 
                 item 
                 xs={12} 
@@ -230,21 +535,21 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
       )}
 
       {/* Files grid */}
-      {files.length > 0 ? (
+      {filteredFiles.length > 0 ? (
         <Box>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>Files</Typography>
           <Grid container spacing={2}>
-            {files.map((file) => (
+            {filteredFiles.map((file) => (
               <Grid 
                 item 
                 xs={12} 
                 sm={viewMode === 'list' ? 12 : viewMode === 'compact' ? 3 : viewMode === 'large' ? 6 : 4} 
-                md={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 4 : 3}
+                md={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 4 : 3} 
                 lg={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 3 : 2.4}
                 key={file.id}
               >
                 <FileItem 
-                  file={file}
+                  file={file} 
                   onDeleteFile={handleDeleteFile}
                   onToggleVisibility={handleToggleFileVisibility}
                   viewMode={viewMode}
@@ -254,9 +559,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
           </Grid>
         </Box>
       ) : (
-        files.length === 0 && folders.length === 0 && (
+        filteredFiles.length === 0 && sortedFolders.length === 0 && (
           <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 2 }}>
-            <FolderIcon sx={{ fontSize: 60, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
+<FolderIcon sx={{ fontSize: 60, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
             <Typography variant="h6" color="textSecondary" gutterBottom>
               This folder is empty
             </Typography>
