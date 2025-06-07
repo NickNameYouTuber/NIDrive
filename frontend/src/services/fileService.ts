@@ -75,7 +75,16 @@ export const fileService = {
       const response = await apiClient.get(
         `${API_ENDPOINT}${folderId ? `?folder_id=${folderId}` : ''}`
       );
-      return response.data.files;
+      // API может вернуть либо массив напрямую, либо объект с полем files
+      // Проверяем формат ответа и обрабатываем соответственно
+      const files = Array.isArray(response.data) ? response.data : response.data.files || [];
+      
+      // Фильтруем файлы по folder_id для корневой папки и обычных папок
+      if (folderId === null) {
+        return files.filter((f: any) => f.folder_id === null);
+      } else {
+        return files.filter((f: any) => f.folder_id === folderId);
+      }
     } catch (error) {
       console.error('Error fetching files:', error);
       throw error;
@@ -96,7 +105,7 @@ export const fileService = {
       const response = await apiClient.get(API_ENDPOINT);
       
       // Проверяем формат ответа и обрабатываем его
-      const files = response.data.files || response.data || [];
+      const files = Array.isArray(response.data) ? response.data : response.data.files || [];
       
       return files
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
