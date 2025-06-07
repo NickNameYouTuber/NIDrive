@@ -1,344 +1,109 @@
-import React, { useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardActions,
-  Typography,
-  IconButton,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-  Chip,
-  Box,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  TextField,
-  Button,
-  Tooltip,
-  Snackbar,
-  Alert
-} from '@mui/material';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import DeleteIcon from '@mui/icons-material/Delete';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import GetAppIcon from '@mui/icons-material/GetApp';
-import LinkIcon from '@mui/icons-material/Link';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import ImageIcon from '@mui/icons-material/Image';
-import DescriptionIcon from '@mui/icons-material/Description';
-import { fileService } from '../../services/fileService';
+import React from 'react';
+import { Box, Typography, IconButton, Menu, MenuItem } from '@mui/material';
+import { InsertDriveFile, GetApp, Delete, Visibility, VisibilityOff, MoreVert } from '@mui/icons-material';
 
 interface FileItemProps {
-  file: {
-    id: number;
-    filename: string;
-    size_mb: number;
-    mime_type: string;
-    is_public: boolean;
-    public_url: string | null;
-    created_at: string;
-  };
-  onDeleteFile: (fileId: number) => Promise<void>;
-  onToggleVisibility: (fileId: number, isPublic: boolean) => Promise<void>;
+  file: any;
+  onDownload: (event: React.MouseEvent<HTMLElement> | null) => void;
+  onDelete: (event: React.MouseEvent<HTMLElement> | null) => void;
+  onToggleVisibility: (event: React.MouseEvent<HTMLElement> | null) => void;
+  viewMode: 'grid' | 'list' | 'large';
 }
 
-const FileItem: React.FC<FileItemProps> = ({ file, onDeleteFile, onToggleVisibility }) => {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [publicUrlDialogOpen, setPublicUrlDialogOpen] = useState(false);
-  const [publicUrlData, setPublicUrlData] = useState<{
-    file_url: string;
-    filename: string;
-    is_public: boolean;
-    requires_auth?: boolean;
-  } | null>(null);
-  const [copySuccess, setCopySuccess] = useState(false);
-  
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+export const FileItem: React.FC<FileItemProps> = ({ file, onDownload, onDelete, onToggleVisibility, viewMode }) => {
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleMenuClose = () => {
+  const handleClose = () => {
     setAnchorEl(null);
   };
 
-  const handleDeleteClick = () => {
-    handleMenuClose();
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    setDeleteDialogOpen(false);
-    await onDeleteFile(file.id);
-  };
-
-  const handleToggleVisibility = async () => {
-    handleMenuClose();
-    await onToggleVisibility(file.id, !file.is_public);
-  };
-
-  const handleDownload = async () => {
-    handleMenuClose();
-    try {
-      await fileService.downloadFile(file.id, file.filename);
-    } catch (error) {
-      console.error('Ошибка при скачивании:', error);
-      alert(`Ошибка при скачивании ${file.filename}`);
-    }
-  };
-  
-  // Добавляем обработчик для получения публичной ссылки
-  const handleGetPublicUrl = async () => {
-    handleMenuClose();
-    try {
-      const urlData = await fileService.getPublicUrl(file.id);
-      setPublicUrlData(urlData);
-      setPublicUrlDialogOpen(true);
-    } catch (error) {
-      console.error('Ошибка при получении публичной ссылки:', error);
-      alert('Не удалось получить публичную ссылку');
-    }
-  };
-  
-  // Копирование ссылки в буфер обмена
-  const copyToClipboard = () => {
-    if (publicUrlData?.file_url) {
-      navigator.clipboard.writeText(publicUrlData.file_url)
-        .then(() => {
-          setCopySuccess(true);
-          setTimeout(() => setCopySuccess(false), 3000);
-        })
-        .catch(err => {
-          console.error('Ошибка при копировании:', err);
-        });
-    }
-  };
-
-  // Get file icon based on MIME type
-  const getFileIcon = () => {
-    if (file.mime_type.startsWith('image/')) {
-      return <ImageIcon fontSize="large" />;
-    } else if (file.mime_type === 'application/pdf') {
-      return <PictureAsPdfIcon fontSize="large" />;
-    } else if (file.mime_type.startsWith('text/')) {
-      return <DescriptionIcon fontSize="large" />;
+  const getIconForMimeType = (mimeType: string) => {
+    if (mimeType.startsWith('image/')) {
+      return <InsertDriveFile sx={{ color: '#2196f3' }} />;
+    } else if (mimeType.startsWith('video/')) {
+      return <InsertDriveFile sx={{ color: '#f44336' }} />;
+    } else if (mimeType === 'application/pdf') {
+      return <InsertDriveFile sx={{ color: '#f44336' }} />;
+    } else if (mimeType.startsWith('text/')) {
+      return <InsertDriveFile sx={{ color: '#4caf50' }} />;
     } else {
-      return <InsertDriveFileIcon fontSize="large" />;
+      return <InsertDriveFile sx={{ color: '#9e9e9e' }} />;
     }
   };
 
-  // Format file size
-  const formatFileSize = (size: number) => {
-    if (size < 0.1) {
-      return `${Math.round(size * 1024)} KB`;
-    } else if (size < 1) {
-      return `${Math.round(size * 100) / 100} MB`;
-    } else {
-      return `${Math.round(size * 10) / 10} MB`;
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
+  if (viewMode === 'list') {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', p: 1, borderBottom: '1px solid #e0e0e0' }}>
+        {getIconForMimeType(file.mime_type)}
+        <Box sx={{ ml: 2, flexGrow: 1 }}>
+          <Typography variant="body1">{file.filename}</Typography>
+          <Typography variant="caption" color="textSecondary">
+            {file.mime_type} - {file.size_mb.toFixed(2)} MB
+          </Typography>
+        </Box>
+        <IconButton size="small" onClick={onDownload} sx={{ mr: 1 }}>
+          <GetApp fontSize="small" />
+        </IconButton>
+        <IconButton size="small" onClick={onToggleVisibility} sx={{ mr: 1 }}>
+          {file.is_public ? <Visibility fontSize="small" /> : <VisibilityOff fontSize="small" />}
+        </IconButton>
+        <IconButton size="small" onClick={onDelete}>
+          <Delete fontSize="small" />
+        </IconButton>
+      </Box>
+    );
+  }
 
   return (
-    <Card sx={{ 
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      transition: 'transform 0.2s, box-shadow 0.2s',
-      '&:hover': {
-        transform: 'translateY(-4px)',
-        boxShadow: 4
-      }
-    }}>
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          flexDirection: 'column',
-          alignItems: 'center', 
-          justifyContent: 'center',
-          py: 2,
-          bgcolor: 'action.hover'
-        }}
+    <Box
+      sx={{
+        p: 2,
+        border: '1px solid #e0e0e0',
+        borderRadius: 2,
+        textAlign: 'center',
+        cursor: 'pointer',
+        '&:hover': { backgroundColor: '#f5f5f5' },
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        height: viewMode === 'large' ? 200 : 150,
+      }}
+    >
+      {getIconForMimeType(file.mime_type)}
+      <Typography variant="body2" noWrap sx={{ mt: 1, maxWidth: '100%' }}>
+        {file.filename}
+      </Typography>
+      <Typography variant="caption" color="textSecondary">
+        {file.size_mb.toFixed(2)} MB
+      </Typography>
+      <IconButton
+        size="small"
+        sx={{ position: 'absolute', top: 5, right: 5 }}
+        onClick={handleClick}
       >
-        {getFileIcon()}
-      </Box>
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Typography variant="subtitle1" noWrap title={file.filename}>
-          {file.filename}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {formatFileSize(file.size_mb)}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" display="block">
-          Added {formatDate(file.created_at)}
-        </Typography>
-        {file.is_public && (
-          <Chip 
-            label="Public" 
-            size="small" 
-            color="primary" 
-            sx={{ mt: 1 }}
-            icon={<VisibilityIcon />}
-          />
-        )}
-      </CardContent>
-      <CardActions>
-        <Button 
-          size="small" 
-          startIcon={<GetAppIcon />} 
-          onClick={handleDownload}
-          sx={{ mr: 'auto' }}
-        >
-          Download
-        </Button>
-        <IconButton onClick={handleMenuClick}>
-          <MoreVertIcon />
-        </IconButton>
-      </CardActions>
-
-      {/* Menu */}
+        <MoreVert fontSize="small" />
+      </IconButton>
       <Menu
         anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
+        open={open}
+        onClose={handleClose}
       >
-        <MenuItem onClick={handleToggleVisibility}>
-          <ListItemIcon>
-            {file.is_public ? <VisibilityOffIcon /> : <VisibilityIcon />}
-          </ListItemIcon>
-          <ListItemText>
-            {file.is_public ? 'Make Private' : 'Make Public'}
-          </ListItemText>
+        <MenuItem onClick={() => { handleClose(); onDownload(null); }}>
+          Download
         </MenuItem>
-        {/* Новый пункт меню для получения публичной ссылки */}
-        <MenuItem onClick={handleGetPublicUrl}>
-          <ListItemIcon>
-            <LinkIcon />
-          </ListItemIcon>
-          <ListItemText>Get Download Link</ListItemText>
+        <MenuItem onClick={() => { handleClose(); onToggleVisibility(null); }}>
+          {file.is_public ? 'Make Private' : 'Make Public'}
         </MenuItem>
-        <MenuItem onClick={handleDownload}>
-          <ListItemIcon>
-            <GetAppIcon />
-          </ListItemIcon>
-          <ListItemText>Download</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleDeleteClick}>
-          <ListItemIcon>
-            <DeleteIcon />
-          </ListItemIcon>
-          <ListItemText>Delete</ListItemText>
+        <MenuItem onClick={() => { handleClose(); onDelete(null); }}>
+          Delete
         </MenuItem>
       </Menu>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>Delete File</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete "{file.filename}"? This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmDelete} color="error" autoFocus>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Диалоговое окно для отображения ссылки на скачивание */}
-      <Dialog
-        open={publicUrlDialogOpen}
-        onClose={() => setPublicUrlDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {publicUrlData?.is_public ? "Public Download Link" : "Direct Download Link"}
-        </DialogTitle>
-        <DialogContent>
-          {publicUrlData?.requires_auth && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              This is a private file. A direct download link has been generated that will work with your current authentication.
-            </Alert>
-          )}
-          
-          <DialogContentText sx={{ mb: 2 }}>
-            You can use this link to download {publicUrlData?.filename}:
-          </DialogContentText>
-          
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-            <TextField
-              fullWidth
-              value={publicUrlData?.file_url || ''}
-              variant="outlined"
-              InputProps={{
-                readOnly: true,
-              }}
-            />
-            <Tooltip title="Copy link">
-              <Button 
-                onClick={copyToClipboard} 
-                startIcon={<ContentCopyIcon />}
-                sx={{ ml: 1 }}
-              >
-                Copy
-              </Button>
-            </Tooltip>
-          </Box>
-          
-          <DialogContentText variant="body2">
-            You can also use the button below to download the file directly:
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={async () => {
-              try {
-                if (publicUrlData?.file_url && publicUrlData?.filename) {
-                  await fileService.downloadFile(file.id, publicUrlData.filename);
-                }
-              } catch (error) {
-                console.error('Ошибка при скачивании:', error);
-              }
-            }}
-            color="primary"
-            startIcon={<GetAppIcon />}
-          >
-            Download
-          </Button>
-          <Button onClick={() => setPublicUrlDialogOpen(false)} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Уведомление о успешном копировании */}
-      <Snackbar
-        open={copySuccess}
-        autoHideDuration={3000}
-        onClose={() => setCopySuccess(false)}
-      >
-        <Alert onClose={() => setCopySuccess(false)} severity="success" sx={{ width: '100%' }}>
-          Link copied to clipboard!
-        </Alert>
-      </Snackbar>
-    </Card>
+    </Box>
   );
 };
 

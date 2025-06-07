@@ -1,228 +1,217 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Typography,
-  Paper,
-  Grid,
-  CircularProgress,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  MenuItem,
-  Menu,
-  ListItemIcon,
-  ListItemText
-} from '@mui/material';
-import FolderIcon from '@mui/icons-material/Folder';
-import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
+import { Box, Grid, List, ListItem, ListItemText, ListItemIcon, ListItemSecondaryAction, IconButton, Typography, CircularProgress } from '@mui/material';
+import { Folder, InsertDriveFile, Delete, GetApp, Visibility, VisibilityOff, MoreVert } from '@mui/icons-material';
+import { enqueueSnackbar } from 'notistack';
 import { fileService } from '../../services/fileService';
 import { folderService } from '../../services/folderService';
 import FileItem from './FileItem';
-import FolderItem from './FolderItem';
-import { useSnackbar } from 'notistack';
 
 interface FileExplorerProps {
   currentFolderId: number | null;
-  isLoading: boolean;
-  updateTrigger?: number; // Триггер для обновления списка файлов
+  updateTrigger: number;
+  setUpdateTrigger: React.Dispatch<React.SetStateAction<number>>;
+  isLoading?: boolean;
+  viewMode: 'grid' | 'list' | 'large';
+  files?: any[];
 }
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading, updateTrigger = 0 }) => {
-  const navigate = useNavigate();
-  const { enqueueSnackbar } = useSnackbar();
-  
-  const [files, setFiles] = useState<any[]>([]);
+const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, updateTrigger, setUpdateTrigger, isLoading = false, viewMode, files }) => {
   const [folders, setFolders] = useState<any[]>([]);
-  const [localLoading, setLocalLoading] = useState<boolean>(false);
-  
-  // New folder dialog
-  const [newFolderOpen, setNewFolderOpen] = useState<boolean>(false);
-  const [newFolderName, setNewFolderName] = useState<string>('');
-  
-  // Fetch files and folders data
+  const [filesData, setFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const navigate = useNavigate();
+
   useEffect(() => {
     const fetchData = async () => {
-      setLocalLoading(true);
+      setLoading(true);
       try {
         // Fetch folders
         const foldersData = await folderService.getFolders(currentFolderId);
         setFolders(foldersData);
-        
-        // Fetch files
-        const filesData = await fileService.getFiles(currentFolderId);
-        setFiles(filesData);
+
+        // Use provided files if available (e.g., search results)
+        if (files && files.length > 0) {
+          setFiles(files);
+        } else {
+          // Otherwise fetch files for the current folder
+          const filesData = await fileService.getFiles(currentFolderId);
+          setFiles(filesData);
+        }
       } catch (error) {
-        console.error('Error fetching files/folders:', error);
-        enqueueSnackbar('Failed to load files or folders', { variant: 'error' });
+        enqueueSnackbar('Ошибка при загрузке данных', { variant: 'error' });
+        console.error('Error fetching data:', error);
       } finally {
-        setLocalLoading(false);
+        setLoading(false);
       }
     };
-    
+
     if (!isLoading) {
       fetchData();
     }
-  }, [currentFolderId, isLoading, updateTrigger, enqueueSnackbar]);
-  
-  // Handle folder creation
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) {
-      enqueueSnackbar('Please enter a folder name', { variant: 'warning' });
-      return;
-    }
-    
-    try {
-      const newFolder = await folderService.createFolder(newFolderName, currentFolderId);
-      setFolders(prev => [...prev, newFolder]);
-      setNewFolderName('');
-      setNewFolderOpen(false);
-      enqueueSnackbar(`Folder "${newFolderName}" created`, { variant: 'success' });
-    } catch (error) {
-      console.error('Error creating folder:', error);
-      enqueueSnackbar('Failed to create folder', { variant: 'error' });
-    }
-  };
-  
-  // Handle folder navigation
+  }, [currentFolderId, updateTrigger, isLoading, files, enqueueSnackbar]);
+
   const handleFolderClick = (folderId: number) => {
     navigate(`/storage/${folderId}`);
   };
-  
-  // Handle folder deletion
-  const handleDeleteFolder = async (folderId: number) => {
+
+  const handleDeleteFolder = async (folderId: number, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     try {
       await folderService.deleteFolder(folderId);
-      setFolders(prev => prev.filter(folder => folder.id !== folderId));
-      enqueueSnackbar('Folder deleted', { variant: 'success' });
+      setUpdateTrigger(updateTrigger + 1);
+      enqueueSnackbar('Папка удалена', { variant: 'success' });
     } catch (error) {
+      enqueueSnackbar('Ошибка при удалении папки', { variant: 'error' });
       console.error('Error deleting folder:', error);
-      enqueueSnackbar('Failed to delete folder', { variant: 'error' });
-    }
-  };
-  
-  // Handle file deletion
-  const handleDeleteFile = async (fileId: number) => {
-    try {
-      await fileService.deleteFile(fileId);
-      setFiles(prev => prev.filter(file => file.id !== fileId));
-      enqueueSnackbar('File deleted', { variant: 'success' });
-    } catch (error) {
-      console.error('Error deleting file:', error);
-      enqueueSnackbar('Failed to delete file', { variant: 'error' });
-    }
-  };
-  
-  // Handle file visibility toggle
-  const handleToggleFileVisibility = async (fileId: number, isPublic: boolean) => {
-    try {
-      const updatedFile = await fileService.toggleFileVisibility(fileId, isPublic);
-      setFiles(prev => prev.map(file => file.id === fileId ? updatedFile : file));
-      enqueueSnackbar(`File is now ${isPublic ? 'public' : 'private'}`, { variant: 'success' });
-    } catch (error) {
-      console.error('Error toggling file visibility:', error);
-      enqueueSnackbar('Failed to update file visibility', { variant: 'error' });
     }
   };
 
-  if (isLoading || localLoading) {
+  const handleDeleteFile = async (fileId: number, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    try {
+      await fileService.deleteFile(fileId);
+      setUpdateTrigger(updateTrigger + 1);
+      enqueueSnackbar('Файл удален', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar('Ошибка при удалении файла', { variant: 'error' });
+      console.error('Error deleting file:', error);
+    }
+  };
+
+  const handleDownloadFile = async (fileId: number, filename: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    try {
+      await fileService.downloadFile(fileId, filename);
+      enqueueSnackbar('Файл скачан', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar('Ошибка при скачивании файла', { variant: 'error' });
+      console.error('Error downloading file:', error);
+    }
+  };
+
+  const handleToggleVisibility = async (fileId: number, isPublic: boolean, event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    try {
+      await fileService.toggleFileVisibility(fileId, !isPublic);
+      setUpdateTrigger(updateTrigger + 1);
+      enqueueSnackbar(isPublic ? 'Файл больше не публичный' : 'Файл теперь публичный', { variant: 'success' });
+    } catch (error) {
+      enqueueSnackbar('Ошибка при изменении видимости файла', { variant: 'error' });
+      console.error('Error toggling visibility:', error);
+    }
+  };
+
+  const renderGridView = () => (
+    <Grid container spacing={2}>
+      {folders.map(folder => (
+        <Grid item xs={6} sm={4} md={3} lg={viewMode === 'large' ? 2 : 2} key={folder.id}>
+          <Box
+            sx={{
+              p: 2,
+              border: '1px solid #e0e0e0',
+              borderRadius: 2,
+              textAlign: 'center',
+              cursor: 'pointer',
+              '&:hover': { backgroundColor: '#f5f5f5' },
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              height: viewMode === 'large' ? 200 : 150,
+            }}
+            onClick={() => handleFolderClick(folder.id)}
+          >
+            <Folder sx={{ fontSize: viewMode === 'large' ? 80 : 50, color: '#fbc02d' }} />
+            <Typography variant="body2" noWrap sx={{ mt: 1, maxWidth: '100%' }}>
+              {folder.name}
+            </Typography>
+            <IconButton
+              size="small"
+              sx={{ position: 'absolute', top: 5, right: 5 }}
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleDeleteFolder(folder.id, e)}
+            >
+              <Delete fontSize="small" />
+            </IconButton>
+          </Box>
+        </Grid>
+      ))}
+
+      {filesData.map(file => (
+        <Grid item xs={6} sm={4} md={3} lg={viewMode === 'large' ? 2 : 2} key={file.id}>
+          <FileItem
+            file={file}
+            onDownload={(e: React.MouseEvent<HTMLElement>) => handleDownloadFile(file.id, file.filename, e as React.MouseEvent<HTMLButtonElement>)}
+            onDelete={(e: React.MouseEvent<HTMLElement>) => handleDeleteFile(file.id, e as React.MouseEvent<HTMLButtonElement>)}
+            onToggleVisibility={(e: React.MouseEvent<HTMLElement>) => handleToggleVisibility(file.id, file.is_public, e as React.MouseEvent<HTMLButtonElement>)}
+            viewMode={viewMode}
+          />
+        </Grid>
+      ))}
+    </Grid>
+  );
+
+  const renderListView = () => (
+    <List>
+      {folders.map(folder => (
+        <ListItem key={folder.id} onClick={() => handleFolderClick(folder.id)} sx={{ cursor: 'pointer' }}>
+          <ListItemIcon>
+            <Folder color="primary" />
+          </ListItemIcon>
+          <ListItemText primary={folder.name} secondary="Folder" />
+          <ListItemSecondaryAction>
+            <IconButton size="small" onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleDeleteFolder(folder.id, e)}>
+              <Delete fontSize="small" />
+            </IconButton>
+          </ListItemSecondaryAction>
+        </ListItem>
+      ))}
+
+      {filesData.map(file => (
+        <ListItem key={file.id} sx={{ cursor: 'pointer' }}>
+          <ListItemIcon>
+            <InsertDriveFile />
+          </ListItemIcon>
+          <ListItemText
+            primary={file.filename}
+            secondary={`${file.mime_type} - ${file.size_mb.toFixed(2)} MB`}
+          />
+          <ListItemSecondaryAction>
+            <IconButton size="small" onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleDownloadFile(file.id, file.filename, e)} sx={{ mr: 1 }}>
+              <GetApp fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleToggleVisibility(file.id, file.is_public, e)} sx={{ mr: 1 }}>
+              {file.is_public ? <Visibility fontSize="small" /> : <VisibilityOff fontSize="small" />}
+            </IconButton>
+            <IconButton size="small" onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleDeleteFile(file.id, e)}>
+              <Delete fontSize="small" />
+            </IconButton>
+          </ListItemSecondaryAction>
+        </ListItem>
+      ))}
+    </List>
+  );
+
+  if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (folders.length === 0 && filesData.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 10 }}>
+        <Typography variant="h6" color="textSecondary">
+          В этой папке пока нет файлов или папок
+        </Typography>
       </Box>
     );
   }
 
   return (
     <Box>
-      {/* Header with actions */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">
-          {folders.length === 0 && files.length === 0 
-            ? 'No files or folders' 
-            : `${folders.length} folder${folders.length !== 1 ? 's' : ''}, ${files.length} file${files.length !== 1 ? 's' : ''}`}
-        </Typography>
-        <Button 
-          variant="contained" 
-          startIcon={<CreateNewFolderIcon />}
-          onClick={() => setNewFolderOpen(true)}
-        >
-          New Folder
-        </Button>
-      </Box>
-
-      {/* Folders grid */}
-      {folders.length > 0 && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>Folders</Typography>
-          <Grid container spacing={2}>
-            {folders.map((folder) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={folder.id}>
-                <FolderItem 
-                  folder={folder}
-                  onFolderClick={handleFolderClick}
-                  onDeleteFolder={handleDeleteFolder}
-                />
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      )}
-
-      {/* Files grid */}
-      {files.length > 0 ? (
-        <Box>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>Files</Typography>
-          <Grid container spacing={2}>
-            {files.map((file) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={file.id}>
-                <FileItem 
-                  file={file}
-                  onDeleteFile={handleDeleteFile}
-                  onToggleVisibility={handleToggleFileVisibility}
-                />
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      ) : (
-        files.length === 0 && folders.length === 0 && (
-          <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 2 }}>
-            <FolderIcon sx={{ fontSize: 60, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
-            <Typography variant="h6" color="textSecondary" gutterBottom>
-              This folder is empty
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              Upload files or create folders to get started
-            </Typography>
-          </Paper>
-        )
-      )}
-
-      {/* New Folder Dialog */}
-      <Dialog open={newFolderOpen} onClose={() => setNewFolderOpen(false)}>
-        <DialogTitle>Create New Folder</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            id="name"
-            label="Folder Name"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNewFolderOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreateFolder} variant="contained">Create</Button>
-        </DialogActions>
-      </Dialog>
+      {viewMode === 'list' ? renderListView() : renderGridView()}
     </Box>
   );
 };

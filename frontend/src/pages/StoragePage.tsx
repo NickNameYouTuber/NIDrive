@@ -7,6 +7,8 @@ import FileExplorer from '../components/storage/FileExplorer';
 import FileUploader from '../components/storage/FileUploader';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
+import ViewToggle from '../components/storage/ViewToggle';
+import SearchBar from '../components/storage/SearchBar';
 
 interface Folder {
   id: number;
@@ -26,8 +28,11 @@ const StoragePage: React.FC = () => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: 'Root' }]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [filesUpdateTrigger, setFilesUpdateTrigger] = useState<number>(0);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'large'>('grid');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
   const currentFolderId = folderId ? parseInt(folderId, 10) : null;
-  
+
   // Функция для обновления списка файлов
   const refreshFiles = () => {
     setFilesUpdateTrigger(prev => prev + 1);
@@ -57,12 +62,12 @@ const StoragePage: React.FC = () => {
 
   const buildBreadcrumbs = async (folder: Folder) => {
     const breadcrumbItems: BreadcrumbItem[] = [{ id: null, name: 'Root' }];
-    
+
     // If we're in a subfolder, build the path
     if (folder) {
       const getFolderPath = async (folderId: number | null) => {
         if (folderId === null) return;
-        
+
         try {
           const parentFolder = await folderService.getFolder(folderId);
           if (parentFolder.parent_id !== null) {
@@ -76,16 +81,16 @@ const StoragePage: React.FC = () => {
           console.error('Error building breadcrumbs:', error);
         }
       };
-      
+
       await getFolderPath(folder.parent_id);
-      
+
       // Add the current folder
       breadcrumbItems.push({
         id: folder.id,
         name: folder.name
       });
     }
-    
+
     setBreadcrumbs(breadcrumbItems);
   };
 
@@ -94,6 +99,29 @@ const StoragePage: React.FC = () => {
       navigate('/storage');
     } else {
       navigate(`/storage/${id}`);
+    }
+  };
+
+  const handleViewChange = (mode: 'grid' | 'list' | 'large') => {
+    setViewMode(mode);
+  };
+
+  const handleSearch = async (query: string, filters: any) => {
+    if (!query) {
+      setIsSearching(false);
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    setIsLoading(true);
+    try {
+      const results = await fileService.searchFiles(query, filters);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -131,16 +159,27 @@ const StoragePage: React.FC = () => {
         </Breadcrumbs>
       </Paper>
 
-      {/* File Uploader */}
-      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
-      
-      <Divider sx={{ my: 3 }} />
-      
-      {/* File Explorer */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
+        </Box>
+        
+        <Box>
+          <ViewToggle viewMode={viewMode} onViewChange={handleViewChange} />
+        </Box>
+      </Box>
+
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+        <SearchBar onSearch={handleSearch} />
+      </Box>
+
       <FileExplorer 
         currentFolderId={currentFolderId} 
         isLoading={isLoading}
         updateTrigger={filesUpdateTrigger}
+        setUpdateTrigger={setFilesUpdateTrigger}
+        viewMode={viewMode}
+        files={isSearching ? searchResults : undefined}
       />
     </Box>
   );

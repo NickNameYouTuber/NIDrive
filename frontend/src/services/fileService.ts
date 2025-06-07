@@ -1,4 +1,4 @@
-import apiClient from './authService';
+import apiClient from './apiClient'; // Убедитесь, что путь к файлу правильный
 
 // Расширяем типы для import.meta.env (Vite)
 declare global {
@@ -11,6 +11,7 @@ declare global {
   }
 }
 
+// API endpoint for files
 const API_ENDPOINT = '/api/v1/files';
 const isTestMode = import.meta.env.VITE_TEST_MODE === 'true';
 
@@ -19,217 +20,147 @@ const testFiles = [
   {
     id: 1,
     filename: 'document.pdf',
-    owner_id: '12345678',
-    folder_id: 1,
-    size_mb: 2.5,
+    filepath: '/uploads/document.pdf',
     mime_type: 'application/pdf',
+    size: 1024000,
+    size_mb: 1.02,
+    owner_id: '12345678',
+    folder_id: null,
     is_public: false,
-    created_at: '2025-01-15T10:30:00Z',
-    updated_at: '2025-01-15T10:30:00Z',
-    is_deleted: false,
-    public_url: null
+    public_url: null,
+    created_at: '2025-01-15T10:00:00Z',
+    updated_at: '2025-01-15T10:00:00Z',
+    is_deleted: false
   },
   {
     id: 2,
     filename: 'image.jpg',
-    owner_id: '12345678',
-    folder_id: 2,
-    size_mb: 3.2,
+    filepath: '/uploads/image.jpg',
     mime_type: 'image/jpeg',
-    is_public: true,
-    created_at: '2025-01-16T14:45:00Z',
-    updated_at: '2025-01-16T14:45:00Z',
-    is_deleted: false,
-    public_url: 'http://localhost:7070/public/12345678_image.jpg'
-  },
-  {
-    id: 3,
-    filename: 'notes.txt',
+    size: 512000,
+    size_mb: 0.51,
     owner_id: '12345678',
-    folder_id: null,
-    size_mb: 0.1,
-    mime_type: 'text/plain',
-    is_public: false,
-    created_at: '2025-01-17T09:15:00Z',
-    updated_at: '2025-01-17T09:15:00Z',
-    is_deleted: false,
-    public_url: null
+    folder_id: 1,
+    is_public: true,
+    public_url: 'https://example.com/public/image.jpg',
+    created_at: '2025-01-16T14:30:00Z',
+    updated_at: '2025-01-16T14:30:00Z',
+    is_deleted: false
   }
 ];
 
 export const fileService = {
-  getFiles: async (folderId = null) => {
+  getFiles: async (folderId: number | null = null) => {
     if (isTestMode) {
       console.log('Test mode: Returning test files');
-      return testFiles.filter(file => file.folder_id === folderId);
+      return folderId === null ? testFiles : testFiles.filter(file => file.folder_id === folderId);
     }
-    
     const url = folderId !== null 
       ? `${API_ENDPOINT}?folder_id=${folderId}` 
       : API_ENDPOINT;
     const response = await apiClient.get(url);
     return response.data;
   },
-  
-  getFile: async (fileId: number) => {
-    if (isTestMode) {
-      console.log('Test mode: Returning test file');
-      const file = testFiles.find(f => f.id === fileId);
-      if (!file) throw new Error('File not found');
-      return file;
-    }
-    
-    const response = await apiClient.get(`${API_ENDPOINT}/${fileId}`);
-    return response.data;
-  },
-  
-  uploadFile: async (file: File, folderId: number | null, isPublic: boolean) => {
+
+  uploadFile: async (file: File, folderId: number | null = null) => {
     if (isTestMode) {
       console.log('Test mode: Simulating file upload');
-      
-      // Create a fake response with the uploaded file data
-      const newId = Math.max(...testFiles.map(f => f.id)) + 1;
-      const newFile = {
-        id: newId,
-        filename: file.name,
-        owner_id: '12345678',
-        folder_id: folderId,
-        size_mb: file.size / (1024 * 1024),
-        mime_type: file.type,
-        is_public: isPublic,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_deleted: false,
-        public_url: isPublic ? `http://localhost:7070/public/12345678_${file.name}` : null
-      };
-      
-      return newFile;
+      return { id: Math.floor(Math.random() * 1000), filename: file.name, size: file.size };
     }
-    
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('folder_id', folderId ? folderId.toString() : '');
-    formData.append('is_public', isPublic ? 'true' : 'false');
-    
+    if (folderId !== null) {
+      formData.append('folder_id', folderId.toString());
+    }
     const response = await apiClient.post(API_ENDPOINT, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     });
     return response.data;
   },
-  
+
   deleteFile: async (fileId: number) => {
     if (isTestMode) {
       console.log('Test mode: Simulating file deletion');
-      return true;
+      return { success: true };
     }
-    
-    await apiClient.delete(`${API_ENDPOINT}/${fileId}`);
-    return true;
+    const response = await apiClient.delete(`${API_ENDPOINT}/${fileId}`);
+    return response.data;
   },
-  
+
+  downloadFile: async (fileId: number, filename: string) => {
+    if (isTestMode) {
+      console.log('Test mode: Simulating file download');
+      return { success: true };
+    }
+    const response = await apiClient.get(`${API_ENDPOINT}/${fileId}/download`, {
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    return { success: true };
+  },
+
   toggleFileVisibility: async (fileId: number, isPublic: boolean) => {
     if (isTestMode) {
-      console.log('Test mode: Simulating visibility toggle');
+      console.log('Test mode: Simulating toggling file visibility');
       const file = testFiles.find(f => f.id === fileId);
-      if (!file) throw new Error('File not found');
-      
-      file.is_public = isPublic;
-      file.public_url = isPublic ? `http://localhost:7070/public/12345678_${file.filename}` : null;
-      return file;
+      if (file) {
+        file.is_public = isPublic;
+        file.public_url = isPublic ? `https://example.com/public/${file.filename}` : null;
+      }
+      return { success: true };
     }
-    
-    const response = await apiClient.patch(`${API_ENDPOINT}/${fileId}/visibility`, { is_public: isPublic });
+    const response = await apiClient.patch(`${API_ENDPOINT}/${fileId}`, { is_public: isPublic });
     return response.data;
   },
-  
-  getDownloadLink: (fileId: number | string) => {
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:7070'}${API_ENDPOINT}/${fileId}/download`;
-  },
-  
-  // Новый метод для скачивания файлов через Fetch API без открытия нового окна
-  downloadFile: async (fileId: number | string, filename: string) => {
-    try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:7070'}${API_ENDPOINT}/${fileId}/download`;
-      
-      // Используем текущий экземпляр apiClient, который уже содержит заголовок авторизации
-      const response = await apiClient.get(url, { responseType: 'blob' });
-      
-      // Создаем объект URL для скачивания
-      const blob = new Blob([response.data]);
-      const objectUrl = URL.createObjectURL(blob);
-      
-      // Создаем ссылку для скачивания
-      const anchor = document.createElement('a');
-      document.body.appendChild(anchor);
-      anchor.href = objectUrl;
-      anchor.download = filename;
-      anchor.click();
-      
-      // Очищаем ресурсы
-      URL.revokeObjectURL(objectUrl);
-      document.body.removeChild(anchor);
-      
-      return true;
-    } catch (error) {
-      console.error('Ошибка при скачивании файла:', error);
-      throw error;
-    }
-  },
-  
-  // Получение публичного URL для файла
-  getPublicUrl: async (fileId: number | string) => {
+
+  getPublicFileUrl: async (fileId: number) => {
     if (isTestMode) {
-      console.log('Test mode: Returning mock public URL');
-      return {
-        file_url: `http://localhost:7070/api/v1/files/${fileId}/download`,
-        filename: 'test-file.txt',
-        is_public: true
-      };
+      console.log('Test mode: Returning test public URL');
+      const file = testFiles.find(f => f.id === fileId);
+      return file && file.is_public ? file.public_url : null;
     }
-    
     const response = await apiClient.get(`${API_ENDPOINT}/${fileId}/public-url`);
-    return response.data;
+    return response.data.public_url;
   },
-  
-  // Получение недавних файлов
+
   getRecentFiles: async () => {
     if (isTestMode) {
-      console.log('Test mode: Getting recent files');
-      return testFiles.slice(0, 5); // Возвращаем первые 5 файлов как недавние
+      console.log('Test mode: Returning test recent files');
+      return testFiles.slice(0, 5);
     }
-
-    try {
-      const response = await apiClient.get('/api/v1/files/recent');
-      return response.data;
-    } catch (error) {
-      console.error('Ошибка при получении недавних файлов:', error);
-      throw error;
-    }
+    const response = await apiClient.get(`${API_ENDPOINT}/recent`);
+    return response.data;
   },
-  
-  // Поиск файлов
-  searchFiles: async (query: string, filters: any = {}) => {
-    if (isTestMode) {
-      console.log('Test mode: Searching files', query, filters);
-      return testFiles.filter(f => 
-        f.filename.toLowerCase().includes(query.toLowerCase())
-      );
-    }
 
-    try {
-      // Формируем параметры запроса
-      let params: any = { query };
-      
-      if (filters.type) params.file_type = filters.type;
-      if (filters.dateFrom) params.date_from = filters.dateFrom;
-      if (filters.dateTo) params.date_to = filters.dateTo;
-      if (filters.isPublic !== undefined) params.is_public = filters.isPublic;
-      
-      const response = await apiClient.get('/api/v1/files/search', { params });
-      return response.data;
-    } catch (error) {
-      console.error('Ошибка при поиске файлов:', error);
-      throw error;
+  searchFiles: async (query: string, mimeType: string | null = null, folderId: number | null = null) => {
+    if (isTestMode) {
+      console.log('Test mode: Returning test search results for files');
+      let results = testFiles.filter(file => file.filename.toLowerCase().includes(query.toLowerCase()));
+      if (mimeType) {
+        results = results.filter(file => file.mime_type === mimeType);
+      }
+      if (folderId !== null) {
+        results = results.filter(file => file.folder_id === folderId);
+      }
+      return results;
     }
+    let url = `${API_ENDPOINT}/search?q=${encodeURIComponent(query)}`;
+    if (mimeType) {
+      url += `&mime_type=${encodeURIComponent(mimeType)}`;
+    }
+    if (folderId !== null) {
+      url += `&folder_id=${folderId}`;
+    }
+    const response = await apiClient.get(url);
+    return response.data;
   }
 };

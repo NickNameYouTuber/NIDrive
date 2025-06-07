@@ -1,5 +1,6 @@
-import apiClient from './authService';
+import apiClient from './apiClient'; // Убедитесь, что путь к файлу apiClient правильный
 
+// API endpoint for folders
 const API_ENDPOINT = '/api/v1/folders';
 const isTestMode = import.meta.env.VITE_TEST_MODE === 'true';
 
@@ -101,7 +102,7 @@ const testFolderTree = [
 ];
 
 export const folderService = {
-  getFolders: async (parentId = null) => {
+  getFolders: async (parentId: number | null = null) => {
     if (isTestMode) {
       console.log('Test mode: Returning test folders');
       return testFolders.filter(folder => folder.parent_id === parentId);
@@ -151,7 +152,7 @@ export const folderService = {
         updated_at: new Date().toISOString(),
         is_deleted: false
       };
-      
+      testFolders.push(newFolder);
       return newFolder;
     }
     
@@ -159,22 +160,19 @@ export const folderService = {
     return response.data;
   },
   
-  updateFolder: async (folderId: number, name: string, parentId: number | null) => {
+  updateFolder: async (folderId: number, name: string) => {
     if (isTestMode) {
       console.log('Test mode: Simulating folder update');
-      const folder = testFolders.find(f => f.id === folderId);
-      if (!folder) throw new Error('Folder not found');
-      
-      folder.name = name;
-      folder.parent_id = parentId;
-      folder.updated_at = new Date().toISOString();
-      return folder;
+      const folderIndex = testFolders.findIndex(f => f.id === folderId);
+      if (folderIndex !== -1) {
+        testFolders[folderIndex].name = name;
+        testFolders[folderIndex].updated_at = new Date().toISOString();
+        return testFolders[folderIndex];
+      }
+      throw new Error('Folder not found');
     }
     
-    const response = await apiClient.put(`${API_ENDPOINT}/${folderId}`, {
-      name,
-      parent_id: parentId
-    });
+    const response = await apiClient.put(`${API_ENDPOINT}/${folderId}`, { name });
     return response.data;
   },
   
