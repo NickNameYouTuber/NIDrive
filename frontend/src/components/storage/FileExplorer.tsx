@@ -7,29 +7,31 @@ import {
   Grid,
   CircularProgress,
   Button,
+  ButtonGroup,
+  TextField,
+  InputAdornment,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+  Divider,
+  Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  MenuItem,
-  Menu,
-  ListItemIcon,
-  ListItemText,
+  FormControl,
+  FormControlLabel,
+  Switch,
   ToggleButtonGroup,
   ToggleButton,
-  Tooltip,
-  Divider,
-  InputAdornment,
-  Select,
-  FormControl,
-  InputLabel,
-  Chip,
-  IconButton,
   FormGroup,
-  FormControlLabel,
   Checkbox,
   OutlinedInput,
+  Select,
+  InputLabel,
+  Chip,
   SelectChangeEvent
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -49,6 +51,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { fileService } from '../../services/fileService';
 import { folderService } from '../../services/folderService';
 import FileItem from './FileItem';
@@ -59,9 +62,10 @@ interface FileExplorerProps {
   currentFolderId: number | null;
   isLoading: boolean;
   updateTrigger?: number; // Триггер для обновления списка файлов
+  onUploadClick?: () => void;
 }
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading, updateTrigger = 0 }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading, updateTrigger = 0, onUploadClick }) => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   
@@ -352,13 +356,22 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
           
           <Divider orientation="vertical" flexItem />
           
-          <Button 
-            variant="contained" 
-            startIcon={<CreateNewFolderIcon />}
-            onClick={() => setNewFolderOpen(true)}
-          >
-            New Folder
-          </Button>
+          <ButtonGroup variant="contained">
+            <Button 
+              startIcon={<CloudUploadIcon />}
+              onClick={onUploadClick}
+              color="primary"
+            >
+              Upload Files
+            </Button>
+            <Button 
+              startIcon={<CreateNewFolderIcon />}
+              onClick={() => setNewFolderOpen(true)}
+              color="secondary"
+            >
+              New Folder
+            </Button>
+          </ButtonGroup>
         </Box>
       </Box>
 

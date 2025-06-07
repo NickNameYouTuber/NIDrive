@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Paper, Breadcrumbs, Link, Divider } from '@mui/material';
+import { Box, Typography, Paper, Breadcrumbs, Link, Divider, Button } from '@mui/material';
 import { fileService } from '../services/fileService';
 import { folderService } from '../services/folderService';
 import FileExplorer from '../components/storage/FileExplorer';
-import FileUploader from '../components/storage/FileUploader';
+import FileUploaderModal from '../components/storage/FileUploaderModal';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 interface Folder {
   id: number;
@@ -26,6 +27,7 @@ const StoragePage: React.FC = () => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: 'Root' }]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [filesUpdateTrigger, setFilesUpdateTrigger] = useState<number>(0);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const currentFolderId = folderId ? parseInt(folderId, 10) : null;
   
   // Функция для обновления списка файлов
@@ -104,9 +106,6 @@ const StoragePage: React.FC = () => {
           Storage
         </Typography>
       </Box>
-
-      {/* File Uploader - Переместили выше навигации по запросу */}
-      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
       
       <Divider sx={{ my: 3 }} />
 
@@ -141,6 +140,15 @@ const StoragePage: React.FC = () => {
         currentFolderId={currentFolderId} 
         isLoading={isLoading}
         updateTrigger={filesUpdateTrigger}
+        onUploadClick={() => setIsUploadModalOpen(true)}
+      />
+      
+      {/* File Uploader Modal */}
+      <FileUploaderModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        currentFolderId={currentFolderId}
+        onFileUploaded={refreshFiles}
       />
     </Box>
   );

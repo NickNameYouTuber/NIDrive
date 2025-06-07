@@ -181,7 +181,7 @@ const DashboardPage: React.FC = () => {
                       }}
                     />
                     <Typography variant="body2" color="textSecondary" align="right" sx={{ mt: 0.5 }}>
-                      {item.progress}% used
+                      {item.progress < 0.1 ? 'less than 0.1%' : `${item.progress.toFixed(1)}%`} used
                     </Typography>
                   </Box>
                 )}
