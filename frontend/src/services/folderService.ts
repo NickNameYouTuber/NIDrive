@@ -1,6 +1,5 @@
-import apiClient from './apiClient'; // Убедитесь, что путь к файлу apiClient правильный
+import apiClient from './authService';
 
-// API endpoint for folders
 const API_ENDPOINT = '/api/v1/folders';
 const isTestMode = import.meta.env.VITE_TEST_MODE === 'true';
 
@@ -102,7 +101,7 @@ const testFolderTree = [
 ];
 
 export const folderService = {
-  getFolders: async (parentId: number | null = null) => {
+  getFolders: async (parentId = null) => {
     if (isTestMode) {
       console.log('Test mode: Returning test folders');
       return testFolders.filter(folder => folder.parent_id === parentId);
@@ -152,7 +151,7 @@ export const folderService = {
         updated_at: new Date().toISOString(),
         is_deleted: false
       };
-      testFolders.push(newFolder);
+      
       return newFolder;
     }
     
@@ -160,19 +159,22 @@ export const folderService = {
     return response.data;
   },
   
-  updateFolder: async (folderId: number, name: string) => {
+  updateFolder: async (folderId: number, name: string, parentId: number | null) => {
     if (isTestMode) {
       console.log('Test mode: Simulating folder update');
-      const folderIndex = testFolders.findIndex(f => f.id === folderId);
-      if (folderIndex !== -1) {
-        testFolders[folderIndex].name = name;
-        testFolders[folderIndex].updated_at = new Date().toISOString();
-        return testFolders[folderIndex];
-      }
-      throw new Error('Folder not found');
+      const folder = testFolders.find(f => f.id === folderId);
+      if (!folder) throw new Error('Folder not found');
+      
+      folder.name = name;
+      folder.parent_id = parentId;
+      folder.updated_at = new Date().toISOString();
+      return folder;
     }
     
-    const response = await apiClient.put(`${API_ENDPOINT}/${folderId}`, { name });
+    const response = await apiClient.put(`${API_ENDPOINT}/${folderId}`, {
+      name,
+      parent_id: parentId
+    });
     return response.data;
   },
   
@@ -184,21 +186,5 @@ export const folderService = {
     
     await apiClient.delete(`${API_ENDPOINT}/${folderId}`);
     return true;
-  },
-  
-  // Получение недавних папок
-  getRecentFolders: async () => {
-    if (isTestMode) {
-      console.log('Test mode: Getting recent folders');
-      return testFolders.slice(0, 5); // Возвращаем первые 5 папок как недавние
-    }
-
-    try {
-      const response = await apiClient.get('/api/v1/folders/recent');
-      return response.data;
-    } catch (error) {
-      console.error('Ошибка при получении недавних папок:', error);
-      throw error;
-    }
   }
 };

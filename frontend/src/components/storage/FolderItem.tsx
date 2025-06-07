@@ -32,9 +32,10 @@ interface FolderItemProps {
   };
   onFolderClick: (folderId: number) => void;
   onDeleteFolder: (folderId: number) => Promise<void>;
+  viewMode?: 'compact' | 'comfortable' | 'large' | 'list';
 }
 
-const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDeleteFolder }) => {
+const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDeleteFolder, viewMode = 'comfortable' }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -45,20 +46,25 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
     setAnchorEl(event.currentTarget);
   };
 
-  const handleMenuClose = (event?: React.MouseEvent<HTMLElement>) => {
-    if (event) {
-      event.stopPropagation();
-    }
+  const handleMenuClose = () => {
     setAnchorEl(null);
+  };
+  
+  const handleCloseDeleteDialog = (event: {}, reason: 'backdropClick' | 'escapeKeyDown') => {
+    setDeleteDialogOpen(false);
+  };
+  
+  const handleCloseRenameDialog = (event: {}, reason: 'backdropClick' | 'escapeKeyDown') => {
+    setRenameDialogOpen(false);
   };
 
   const handleDeleteClick = (event: React.MouseEvent<HTMLElement>) => {
-    handleMenuClose(event);
+    handleMenuClose();
     setDeleteDialogOpen(true);
   };
 
-  const handleRenameClick = (event: React.MouseEvent<HTMLElement>) => {
-    handleMenuClose(event);
+  const handleRenameClick = () => {
+    handleMenuClose();
     setNewFolderName(folder.name);
     setRenameDialogOpen(true);
   };
@@ -87,42 +93,154 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
     return date.toLocaleDateString();
   };
 
+  const getCardStyles = () => {
+    const baseStyles = {
+      cursor: 'pointer',
+      position: 'relative',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      '&:hover': {
+        transform: viewMode !== 'list' ? 'translateY(-4px)' : 'none',
+        boxShadow: 3,
+      }
+    };
+    
+    switch (viewMode) {
+      case 'list':
+        return {
+          ...baseStyles,
+          height: 'auto',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          p: 1
+        };
+      case 'compact':
+        return {
+          ...baseStyles,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          '& .MuiCardContent-root': {
+            p: 1
+          },
+          '& .MuiCardActions-root': {
+            p: '0 8px 8px'
+          },
+          '& .MuiTypography-root': {
+            fontSize: '0.85rem'
+          }
+        };
+      case 'large':
+        return {
+          ...baseStyles,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          '& .MuiCardContent-root': {
+            p: 2
+          },
+          '& .MuiTypography-root.folder-name': {
+            fontSize: '1.2rem'
+          }
+        };
+      case 'comfortable':
+      default:
+        return {
+          ...baseStyles,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        };
+    }
+  };
+
   return (
     <Card 
-      sx={{ 
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        cursor: 'pointer',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': {
-          transform: 'translateY(-4px)',
-          boxShadow: 4
-        }
-      }}
+      variant="outlined"
+      sx={getCardStyles()}
       onClick={() => onFolderClick(folder.id)}
     >
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          flexDirection: 'column',
-          alignItems: 'center', 
-          justifyContent: 'center',
-          py: 2,
-          bgcolor: theme => theme.palette.mode === 'light' ? 'primary.light' : 'primary.dark',
-          color: 'white'
-        }}
-      >
-        <FolderIcon sx={{ fontSize: 40 }} />
-      </Box>
-      <CardContent sx={{ flexGrow: 1 }}>
-        <Typography variant="subtitle1" noWrap title={folder.name}>
-          {folder.name}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" display="block">
-          Created {formatDate(folder.created_at)}
-        </Typography>
-      </CardContent>
+      {viewMode === 'list' ? (
+        // List view layout
+        <Box sx={{ display: 'flex', width: '100%', alignItems: 'center', p: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flex: '0 0 70%', overflow: 'hidden' }}>
+            <FolderIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography className="folder-name" sx={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              {folder.name}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ flex: '0 0 15%', pl: 2 }}>
+            <Typography variant="body2" color="text.secondary">
+              {new Date(folder.created_at).toLocaleDateString()}
+            </Typography>
+          </Box>
+          
+          <Box sx={{ flex: '0 0 15%', display: 'flex', justifyContent: 'flex-end' }}>
+            <IconButton 
+              size="small" 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMenuClick(e);
+              }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </Box>
+      ) : (
+        // Grid view layout
+        <>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            justifyContent: 'center',
+            py: viewMode === 'compact' ? 1 : 2,
+            bgcolor: theme => theme.palette.mode === 'light' ? 'primary.light' : 'primary.dark',
+            color: 'white'
+          }}>
+            <FolderIcon sx={{ fontSize: viewMode === 'compact' ? 30 : 40 }} />
+          </Box>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            p: viewMode === 'compact' ? 1 : 2, 
+            justifyContent: 'space-between'
+          }}>
+            <Typography 
+              className="folder-name"
+              variant={viewMode === 'large' ? "h6" : "subtitle1"} 
+              sx={{ 
+                flex: 1, 
+                overflow: 'hidden', 
+                textOverflow: 'ellipsis', 
+                whiteSpace: 'nowrap',
+                fontSize: viewMode === 'compact' ? '0.9rem' : 'inherit'
+              }}
+            >
+              {folder.name}
+            </Typography>
+            <IconButton 
+              size={viewMode === 'compact' ? 'small' : 'medium'}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMenuClick(e);
+              }}
+            >
+              <MoreVertIcon fontSize={viewMode === 'compact' ? 'small' : 'medium'} />
+            </IconButton>
+          </Box>
+        </>
+      )}
+      {viewMode !== 'list' && viewMode !== 'compact' && (
+        <CardContent sx={{ flexGrow: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Created: {formatDate(folder.created_at)}
+          </Typography>
+        </CardContent>
+      )}
       <CardActions>
         <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
           <IconButton onClick={handleMenuClick}>
@@ -136,7 +254,7 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <MenuItem onClick={handleRenameClick}>
           <ListItemIcon>
@@ -155,8 +273,8 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
       {/* Delete Confirmation Dialog */}
       <Dialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onClick={(e) => e.stopPropagation()}
+        onClose={handleCloseDeleteDialog}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <DialogTitle>Delete Folder</DialogTitle>
         <DialogContent>
@@ -173,8 +291,8 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
       {/* Rename Dialog */}
       <Dialog
         open={renameDialogOpen}
-        onClose={() => setRenameDialogOpen(false)}
-        onClick={(e) => e.stopPropagation()}
+        onClose={handleCloseRenameDialog}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <DialogTitle>Rename Folder</DialogTitle>
         <DialogContent>

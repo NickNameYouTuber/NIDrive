@@ -7,7 +7,6 @@ import FolderIcon from '@mui/icons-material/Folder';
 import StorageIcon from '@mui/icons-material/Storage';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
-import RecentFiles from '../components/dashboard/RecentFiles';
 
 interface UserStats {
   total_files: number;
@@ -51,85 +50,128 @@ const DashboardPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Добро пожаловать, {user?.username || 'User'}!
-      </Typography>
-      <Typography variant="body1" color="textSecondary" gutterBottom>
-        Вот обзор вашего хранилища NIDrive.
-      </Typography>
+  // Stats dashboard items
+  const dashboardItems = [
+    {
+      title: 'Storage Used',
+      icon: <StorageIcon fontSize="large" color="primary" />,
+      value: stats ? formatStorage(stats.used_space) : '0 MB',
+      secondaryText: stats ? `of ${formatStorage(stats.quota)}` : 'of 0 MB',
+      progress: stats ? stats.usage_percent : 0
+    },
+    {
+      title: 'Files',
+      icon: <InsertDriveFileIcon fontSize="large" color="primary" />,
+      value: stats?.total_files || 0,
+      secondaryText: 'total files'
+    },
+    {
+      title: 'Folders',
+      icon: <FolderIcon fontSize="large" color="primary" />,
+      value: stats?.total_folders || 0,
+      secondaryText: 'total folders'
+    }
+  ];
 
-      {/* Statistics Cards */}
-      <Grid container spacing={3} sx={{ mt: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }} elevation={3}>
-            <InsertDriveFileIcon sx={{ fontSize: 48, color: 'primary.main', mb: 1 }} />
-            <Typography variant="h6">Файлов</Typography>
-            <Typography variant="h4">{stats?.total_files || 0}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }} elevation={3}>
-            <FolderIcon sx={{ fontSize: 48, color: 'warning.main', mb: 1 }} />
-            <Typography variant="h6">Папок</Typography>
-            <Typography variant="h4">{stats?.total_folders || 0}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={6} md={6}>
-          <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column' }} elevation={3}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <StorageIcon sx={{ fontSize: 48, color: 'success.main', mr: 2 }} />
-              <Box>
-                <Typography variant="h6">Использовано пространства</Typography>
-                <Typography variant="body2" color="textSecondary">
-                  {formatStorage(stats?.used_space || 0)} из {formatStorage(stats?.quota || 0)}
+  return (
+    <Box sx={{ flexGrow: 1 }}>
+      {/* Welcome Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Welcome{user?.first_name ? `, ${user.first_name}` : ''}
+        </Typography>
+        <Typography variant="body1" color="textSecondary">
+          Here's an overview of your NIDrive cloud storage
+        </Typography>
+      </Box>
+
+      {/* Stats Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {dashboardItems.map((item, index) => (
+          <Grid item xs={12} sm={6} md={4} key={index}>
+            <Paper
+              sx={{
+                p: 3,
+                display: 'flex',
+                flexDirection: 'column',
+                height: 180,
+                borderRadius: 2,
+              }}
+              elevation={2}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                {item.icon}
+                <Typography variant="h6" sx={{ ml: 1 }}>
+                  {item.title}
                 </Typography>
               </Box>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={stats?.usage_percent || 0}
-              sx={{ height: 8, borderRadius: 4 }}
-            />
-          </Paper>
-        </Grid>
+              <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h3" component="div" sx={{ fontWeight: 500 }}>
+                  {item.value}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">
+                  {item.secondaryText}
+                </Typography>
+                {item.progress !== undefined && (
+                  <Box sx={{ mt: 2 }}>
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={item.progress} 
+                      sx={{
+                        height: 8,
+                        borderRadius: 5,
+                        backgroundColor: theme => theme.palette.grey[200],
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: item.progress > 90 ? 'error.main' : 
+                                        item.progress > 70 ? 'warning.main' : 
+                                        'success.main',
+                        }
+                      }}
+                    />
+                    <Typography variant="body2" color="textSecondary" align="right" sx={{ mt: 0.5 }}>
+                      {item.progress}% used
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Paper>
+          </Grid>
+        ))}
       </Grid>
 
       {/* Quick Actions */}
-      <Box sx={{ mt: 4, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Button
-          variant="contained"
-          startIcon={<CloudUploadIcon />}
-          onClick={() => navigate('/upload')}
-        >
-          Загрузить файл
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<FolderIcon />}
-          onClick={() => navigate('/create-folder')}
-        >
-          Создать папку
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/storage')}
-        >
-          Перейти к хранилищу
-        </Button>
-      </Box>
-
-      <Divider sx={{ my: 4 }} />
-
-      {/* Recent Files Section */}
-      <RecentFiles />
+      <Paper sx={{ p: 3, borderRadius: 2 }} elevation={2}>
+        <Typography variant="h6" gutterBottom>
+          Quick Actions
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+        <Grid container spacing={2}>
+          <Grid item>
+            <Button
+              variant="contained"
+              startIcon={<CloudUploadIcon />}
+              onClick={() => navigate('/storage')}
+            >
+              Upload Files
+            </Button>
+          </Grid>
+          <Grid item>
+            <Button
+              variant="outlined"
+              startIcon={<FolderIcon />}
+              onClick={() => navigate('/storage')}
+            >
+              Browse Files
+            </Button>
+          </Grid>
+        </Grid>
+      </Paper>
     </Box>
   );
 };
