@@ -6,11 +6,11 @@ services:
     container_name: NIDriveBot-backend
     ports:
       - "7070:7070"
-    # Удаляем монтирование томов для исправления ошибки в Windows Docker Desktop
-    # volumes:
-    #  - ./backend:/app
-    #  - uploads_data:/app/uploads
-    #  - db_data:/app/db
+    # Используем именованные тома для сохранения данных между пересборками
+    volumes:
+      # - ./backend:/app  # Убираем монтирование кода для исправления ошибки в Windows Docker Desktop
+      - uploads_data:/app/uploads
+      - db_data:/app/db
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-me}
       - UPLOAD_DIR=/app/uploads
