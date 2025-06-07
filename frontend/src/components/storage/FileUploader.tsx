@@ -22,6 +22,7 @@ import { fileService } from '../../services/fileService';
 
 interface FileUploaderProps {
   currentFolderId: number | null;
+  onFileUploaded?: () => void;
 }
 
 interface UploadingFile {
@@ -32,7 +33,7 @@ interface UploadingFile {
   errorMessage?: string;
 }
 
-const FileUploader: React.FC<FileUploaderProps> = ({ currentFolderId }) => {
+const FileUploader: React.FC<FileUploaderProps> = ({ currentFolderId, onFileUploaded }) => {
   const theme = useTheme();
   const { enqueueSnackbar } = useSnackbar();
   const [files, setFiles] = useState<UploadingFile[]>([]);
@@ -124,6 +125,11 @@ const FileUploader: React.FC<FileUploaderProps> = ({ currentFolderId }) => {
           ));
           
           enqueueSnackbar(`Uploaded ${fileObj.file.name}`, { variant: 'success' });
+          
+          // Вызываем callback для обновления списка файлов в родительском компоненте
+          if (onFileUploaded) {
+            onFileUploaded();
+          }
         } catch (error) {
           console.error(`Error uploading ${fileObj.file.name}:`, error);
           

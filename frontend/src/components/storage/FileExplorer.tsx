@@ -28,9 +28,10 @@ import { useSnackbar } from 'notistack';
 interface FileExplorerProps {
   currentFolderId: number | null;
   isLoading: boolean;
+  updateTrigger?: number; // Триггер для обновления списка файлов
 }
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading, updateTrigger = 0 }) => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   
@@ -65,7 +66,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading 
     if (!isLoading) {
       fetchData();
     }
-  }, [currentFolderId, isLoading, enqueueSnackbar]);
+  }, [currentFolderId, isLoading, updateTrigger, enqueueSnackbar]);
   
   // Handle folder creation
   const handleCreateFolder = async () => {

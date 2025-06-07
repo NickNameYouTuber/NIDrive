@@ -25,7 +25,13 @@ const StoragePage: React.FC = () => {
   const [currentFolder, setCurrentFolder] = useState<Folder | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: null, name: 'Root' }]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [filesUpdateTrigger, setFilesUpdateTrigger] = useState<number>(0);
   const currentFolderId = folderId ? parseInt(folderId, 10) : null;
+  
+  // Функция для обновления списка файлов
+  const refreshFiles = () => {
+    setFilesUpdateTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     const fetchFolderData = async () => {
@@ -126,7 +132,7 @@ const StoragePage: React.FC = () => {
       </Paper>
 
       {/* File Uploader */}
-      <FileUploader currentFolderId={currentFolderId} />
+      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
       
       <Divider sx={{ my: 3 }} />
       
@@ -134,6 +140,7 @@ const StoragePage: React.FC = () => {
       <FileExplorer 
         currentFolderId={currentFolderId} 
         isLoading={isLoading}
+        updateTrigger={filesUpdateTrigger}
       />
     </Box>
   );
