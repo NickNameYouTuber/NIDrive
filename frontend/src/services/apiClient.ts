@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Базовый URL для API - сделаем более универсальным с настраиваемыми вариантами
+// Базовый URL для API - берем из переменных окружения с fallback
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
                      import.meta.env.VITE_API_BASE_URL || 
                      'https://drive.nicorp.tech/api' || 
@@ -20,7 +20,7 @@ const apiClient = axios.create({
 // Интерцептор для добавления токена авторизации в запросы
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('accessToken'); // Используем единое имя токена
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -31,31 +31,34 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Интерцептор для обработки ошибок и обновления токена
+// Интерцептор для обработки ошибок авторизации
 apiClient.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  async (error) => {
-    const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh-token`, { refresh_token: refreshToken });
-        const newAccessToken = response.data.access_token;
-        const newRefreshToken = response.data.refresh_token;
-        localStorage.setItem('access_token', newAccessToken);
-        localStorage.setItem('refresh_token', newRefreshToken);
-        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
-        return apiClient(originalRequest);
-      } catch (refreshError) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
+  (response) => response, // Возвращаем ответ без изменений если нет ошибок
+  (error) => {
+    const originalRequest = error?.config;
+    
+    // Проверяем, что ошибка 401 и не находимся уже на странице логина
+    // чтобы предотвратить бесконечный цикл перенаправлений
+    if (
+      error?.response?.status === 401 && 
+      !originalRequest?._retry && 
+      window.location.pathname !== '/login'
+    ) {
+      console.log('Токен недействителен, выполняется выход из системы...');
+      
+      // Помечаем запрос как уже обработанный
+      if (originalRequest) {
+        originalRequest._retry = true;
       }
+      
+      // Очищаем все токены используя единый формат имен
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('tokenType');
+      
+      // Перенаправляем на страницу входа
+      window.location.href = '/login';
     }
+    
     return Promise.reject(error);
   }
 );
