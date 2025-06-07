@@ -85,23 +85,28 @@ const NotFoundPage: React.FC = () => {
             position: 'relative',
             zIndex: 2,
             backgroundColor: '#ff5722',
-            color: 'white',
+            color: '#ffeb3b',
             px: 6,
             py: 2,
-            fontSize: '1.5rem',
+            fontSize: '1.8rem',
+            fontFamily: '"Comic Sans MS", cursive, sans-serif',
+            WebkitTextStroke: '1px black',
+            textShadow: '2px 2px 0 #000',
             fontWeight: 'bold',
-            borderRadius: '8px',
+            borderRadius: '12px',
             animation: `${flameAnimation} 2s infinite`,
             boxShadow: '0 0 20px 5px rgba(255, 87, 34, 0.7)',
-            border: '2px solid #ff9800',
+            border: '3px solid #ff9800',
+            transform: 'rotate(2deg)',
             '&:hover': {
               backgroundColor: '#ff9800',
               animation: `${flameAnimation} 1s infinite, ${buttonHoverAnimation} 1s infinite`,
+              transform: 'rotate(-2deg)',
             },
             transition: 'all 0.3s ease'
           }}
         >
-          {isAuthenticated ? 'Go to Dashboard' : 'Go to Home Page'}
+          {isAuthenticated ? 'GO TO DASHBOARD!!!1!' : 'GO TO HOME PAGE!!!1!'}
         </Button>
       </Box>
     </Container>
