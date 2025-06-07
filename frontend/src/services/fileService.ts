@@ -84,8 +84,16 @@ export const fileService = {
     }
 
     try {
-      const response = await apiClient.get(`${API_ENDPOINT}/recent?limit=${limit}`);
-      return response.data.files;
+      // Используем стандартный API эндпоинт и сортируем файлы на стороне клиента
+      // т.к. эндпоинта /recent на сервере нет
+      const response = await apiClient.get(API_ENDPOINT);
+      
+      // Проверяем формат ответа и обрабатываем его
+      const files = response.data.files || response.data || [];
+      
+      return files
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, limit);
     } catch (error) {
       console.error('Error fetching recent files:', error);
       // Если API недоступен, возвращаем пустой массив вместо ошибки

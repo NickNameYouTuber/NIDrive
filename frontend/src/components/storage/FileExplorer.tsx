@@ -96,13 +96,15 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
       try {
         // Fetch folders
         const foldersData = await folderService.getFolders(currentFolderId);
-        setFolders(foldersData);
-        setFilteredFolders(foldersData);
+        const validFoldersData = Array.isArray(foldersData) ? foldersData : [];
+        setFolders(validFoldersData);
+        setFilteredFolders(validFoldersData);
         
         // Fetch files
         const filesData = await fileService.getFiles(currentFolderId);
-        setFiles(filesData);
-        setFilteredFiles(filesData);
+        const validFilesData = Array.isArray(filesData) ? filesData : [];
+        setFiles(validFilesData);
+        setFilteredFiles(validFilesData);
       } catch (error) {
         console.error('Error fetching files/folders:', error);
         enqueueSnackbar('Failed to load files or folders', { variant: 'error' });
@@ -310,9 +312,9 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
       {/* Header with actions */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
         <Typography variant="h6">
-          {filteredFolders.length === 0 && filteredFiles.length === 0 
+          {(!filteredFolders || filteredFolders.length === 0) && (!filteredFiles || filteredFiles.length === 0) 
             ? 'No files or folders' 
-            : `${filteredFolders.length} folder${filteredFolders.length !== 1 ? 's' : ''}, ${filteredFiles.length} file${filteredFiles.length !== 1 ? 's' : ''}`}
+            : `${filteredFolders?.length || 0} folder${(!filteredFolders || filteredFolders.length !== 1) ? 's' : ''}, ${filteredFiles?.length || 0} file${(!filteredFiles || filteredFiles.length !== 1) ? 's' : ''}`}
         </Typography>
         
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>

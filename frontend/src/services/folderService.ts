@@ -123,8 +123,16 @@ export const folderService = {
     }
     
     try {
-      const response = await apiClient.get(`${API_ENDPOINT}/recent?limit=${limit}`);
-      return response.data;
+      // Используем стандартный API эндпоинт и сортируем папки на стороне клиента
+      const response = await apiClient.get(API_ENDPOINT);
+      
+      // Проверяем формат ответа
+      const folders = response.data.folders || response.data || [];
+      
+      // Сортируем по дате создания и ограничиваем количество
+      return folders
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, limit);
     } catch (error) {
       console.error('Error fetching recent folders:', error);
       // Если API недоступен, возвращаем пустой массив
