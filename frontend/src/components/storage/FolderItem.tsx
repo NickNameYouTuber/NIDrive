@@ -241,9 +241,12 @@ const FolderItem: React.FC<FolderItemProps> = ({ folder, onFolderClick, onDelete
           </Typography>
         </CardContent>
       )}
-      {viewMode === 'list' || (
-        <CardActions sx={{ justifyContent: 'flex-end', p: viewMode === 'compact' ? '0 8px 8px' : undefined }}>
-          {/* Здесь могут быть дополнительные действия, но убираем лишнюю кнопку с троеточием */}
+      {/* Скрываем CardActions с кнопкой меню для предотвращения дублирования */}
+      {viewMode === 'large' && (
+        <CardActions>
+          <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end' }}>
+            {/* Кнопка меню удалена, так как она уже есть в основном интерфейсе */}
+          </Box>
         </CardActions>
       )}
 

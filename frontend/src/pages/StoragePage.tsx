@@ -105,6 +105,11 @@ const StoragePage: React.FC = () => {
         </Typography>
       </Box>
 
+      {/* File Uploader - Переместили выше навигации по запросу */}
+      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
+      
+      <Divider sx={{ my: 3 }} />
+
       {/* Breadcrumb Navigation */}
       <Paper sx={{ p: 2, mb: 3, borderRadius: 1 }} elevation={1}>
         <Breadcrumbs 
@@ -130,18 +135,13 @@ const StoragePage: React.FC = () => {
           ))}
         </Breadcrumbs>
       </Paper>
-
+      
       {/* File Explorer */}
       <FileExplorer 
         currentFolderId={currentFolderId} 
         isLoading={isLoading}
         updateTrigger={filesUpdateTrigger}
       />
-      
-      <Divider sx={{ my: 3 }} />
-      
-      {/* File Uploader - перемещено вниз */}
-      <FileUploader currentFolderId={currentFolderId} onFileUploaded={refreshFiles} />
     </Box>
   );
 };
