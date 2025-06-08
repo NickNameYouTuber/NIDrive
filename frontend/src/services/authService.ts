@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:7070';
+const API_URL = import.meta.env.VITE_API_URL || 'https://drive.nicorp.tech';
 const isTestMode = import.meta.env.VITE_TEST_MODE === 'true';
 
 const apiClient = axios.create({

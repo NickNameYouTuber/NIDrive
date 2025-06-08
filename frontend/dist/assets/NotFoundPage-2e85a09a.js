@@ -1,4 +1,4 @@
-import{as as a,c as i,g as n,j as e,C as s,B as r,T as f,L as x}from"./index-ed39be07.js";import{B as p}from"./Button-3ab7906b.js";const o=a`
+import{as as a,c as i,g as n,j as e,C as s,B as r,T as f,L as x}from"./index-83407388.js";import{B as p}from"./Button-b33cd292.js";const o=a`
   0% { text-shadow: 0 0 5px #ff5722, 0 0 10px #ff5722, 0 0 15px #ff9800, 0 0 20px #ff9800; }
   50% { text-shadow: 0 0 10px #ff5722, 0 0 20px #ff5722, 0 0 30px #ff9800, 0 0 40px #ff9800; }
   100% { text-shadow: 0 0 5px #ff5722, 0 0 10px #ff5722, 0 0 15px #ff9800, 0 0 20px #ff9800; }
