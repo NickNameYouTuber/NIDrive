@@ -32,7 +32,9 @@ import {
   Select,
   InputLabel,
   Chip,
-  SelectChangeEvent
+  SelectChangeEvent,
+  useMediaQuery,
+  Theme
 } from '@mui/material';
 import FolderIcon from '@mui/icons-material/Folder';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
@@ -65,22 +67,29 @@ interface FileExplorerProps {
   onUploadClick?: () => void;
 }
 
-const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading, updateTrigger = 0, onUploadClick }) => {
+const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId = null, isLoading: parentLoading = false, updateTrigger = 0, onUploadClick }) => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   
+  // Media queries for responsive design
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery((theme: Theme) => theme.breakpoints.between('sm', 'md'));
+  
+  // State variables
   const [files, setFiles] = useState<any[]>([]);
-  const [filteredFiles, setFilteredFiles] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
+  const [filteredFiles, setFilteredFiles] = useState<any[]>([]);
   const [filteredFolders, setFilteredFolders] = useState<any[]>([]);
   const [localLoading, setLocalLoading] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(isMobile ? 'comfortable' : 'list');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortOption, setSortOption] = useState<string>('name-asc');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
   
   // View options
   type ViewMode = 'compact' | 'comfortable' | 'large' | 'list';
-  const [viewMode, setViewMode] = useState<ViewMode>('comfortable');
   
   // Search and filtering
-  const [searchQuery, setSearchQuery] = useState<string>('');
   type FileType = 'image' | 'document' | 'video' | 'audio' | 'other';
   const [fileTypes, setFileTypes] = useState<FileType[]>([]);
   type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc' | 'size-asc' | 'size-desc';
@@ -313,23 +322,39 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
 
   return (
     <Box>
-      {/* Header with actions */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+      {/* Header with actions - responsive layout */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' }, 
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' }, 
+        mb: 2, 
+        gap: 2 
+      }}>
         <Typography variant="h6">
           {(!filteredFolders || filteredFolders.length === 0) && (!filteredFiles || filteredFiles.length === 0) 
             ? 'No files or folders' 
             : `${filteredFolders?.length || 0} folder${(!filteredFolders || filteredFolders.length !== 1) ? 's' : ''}, ${filteredFiles?.length || 0} file${(!filteredFiles || filteredFiles.length !== 1) ? 's' : ''}`}
         </Typography>
         
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          {/* View mode toggle */}
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' }, 
+          gap: 2, 
+          alignItems: 'center',
+          width: { xs: '100%', sm: 'auto' }
+        }}>
+          {/* View mode toggle - hidden on very small screens */}
           <Tooltip title="Switch view mode">
             <ToggleButtonGroup
               value={viewMode}
               exclusive
               onChange={(e, newMode) => newMode && setViewMode(newMode)}
               aria-label="view mode"
-              size="small"
+              size={isMobile ? "small" : "medium"}
+              sx={{ 
+                display: { xs: 'none', sm: 'flex' }
+              }}
             >
               <ToggleButton value="list" aria-label="list view">
                 <Tooltip title="List view">
@@ -354,13 +379,23 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
             </ToggleButtonGroup>
           </Tooltip>
           
-          <Divider orientation="vertical" flexItem />
-          
-          <ButtonGroup variant="contained">
+          {/* Buttons - full width on mobile */}
+          <ButtonGroup 
+            variant="contained"
+            orientation={isMobile ? "vertical" : "horizontal"}
+            sx={{ 
+              width: { xs: '100%', sm: 'auto' },
+              '& .MuiButton-root': {
+                width: { xs: '100%', sm: 'auto' }
+              }
+            }}
+          >
             <Button 
               startIcon={<CloudUploadIcon />}
               onClick={onUploadClick}
               color="primary"
+              fullWidth={isMobile}
+              size={isMobile ? "medium" : "medium"}
             >
               Upload Files
             </Button>
@@ -368,6 +403,8 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
               startIcon={<CreateNewFolderIcon />}
               onClick={() => setNewFolderOpen(true)}
               color="secondary"
+              fullWidth={isMobile}
+              size={isMobile ? "medium" : "medium"}
             >
               New Folder
             </Button>
@@ -375,13 +412,24 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
         </Box>
       </Box>
 
-      {/* Search and Filters UI */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 3 }}>
+      {/* Search and Filters UI - responsive layout */}
+      <Box sx={{
+        display: 'flex', 
+        flexDirection: { xs: 'column', md: 'row' },
+        flexWrap: 'wrap', 
+        gap: 2, 
+        alignItems: { xs: 'stretch', md: 'center' },
+        mb: 3
+      }}>
         <TextField
           placeholder="Search files and folders"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ flexGrow: 1, minWidth: 200 }}
+          sx={{ 
+            flexGrow: 1, 
+            minWidth: { xs: '100%', sm: 200 },
+            width: { xs: '100%', md: 'auto' }
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -397,9 +445,16 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
             ) : null
           }}
           size="small"
+          fullWidth={isMobile}
         />
 
-        <FormControl sx={{ minWidth: 150 }} size="small">
+        <FormControl 
+          sx={{ 
+            minWidth: { xs: '100%', md: 150 },
+            width: { xs: '100%', md: 'auto' }
+          }} 
+          size="small"
+        >
           <InputLabel id="sort-select-label">Sort By</InputLabel>
           <Select
             labelId="sort-select-label"
@@ -407,6 +462,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
             onChange={handleSortChange}
             label="Sort By"
             startAdornment={<SortIcon sx={{ mr: 1 }} />}
+            fullWidth={isMobile}
           >
             <MenuItem value="name-asc">Name (A-Z)</MenuItem>
             <MenuItem value="name-desc">Name (Z-A)</MenuItem>
@@ -417,7 +473,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
           </Select>
         </FormControl>
 
-        <Box>
+        <Box sx={{ width: { xs: '100%', md: 'auto' } }}>
           <Button
             variant="outlined"
             startIcon={<FilterListIcon />}
@@ -516,68 +572,77 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId, isLoading,
         </Box>
       </Box>
 
-      {/* Folders grid */}
-      {filteredFolders.length > 0 && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>Folders</Typography>
-          <Grid container spacing={2}>
-            {filteredFolders.map((folder) => (
-              <Grid 
-                item 
-                xs={12} 
-                sm={viewMode === 'list' ? 12 : viewMode === 'compact' ? 3 : viewMode === 'large' ? 6 : 4} 
-                md={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 4 : 3} 
-                lg={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 3 : 2.4}
-                key={folder.id}
-              >
-                <FolderItem 
-                  folder={folder}
-                  onFolderClick={handleFolderClick}
-                  onDeleteFolder={handleDeleteFolder}
-                  viewMode={viewMode}
-                />
+      {/* Files and folders grid - responsive layout */}
+      {filteredFolders.length > 0 || filteredFiles.length > 0 ? (
+        <Box sx={{ mb: 4 }}>
+          {/* Folders section */}
+          {filteredFolders && filteredFolders.length > 0 && (
+            <>
+              <Typography variant="h6" sx={{ mb: 1 }}>Folders</Typography>
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                {filteredFolders.map((folder) => {
+                  // Адаптивные размеры ячеек для разных устройств и режимов отображения
+                  return (
+                    <Grid 
+                      item 
+                      xs={12} 
+                      sm={viewMode === 'list' ? 12 : 6} 
+                      md={viewMode === 'list' ? 12 : viewMode === 'compact' ? 4 : viewMode === 'comfortable' ? 6 : 6}
+                      lg={viewMode === 'list' ? 12 : viewMode === 'compact' ? 3 : viewMode === 'comfortable' ? 4 : 6}
+                      key={folder.id}
+                    >
+                      <FolderItem 
+                        folder={folder}
+                        onFolderClick={handleFolderClick}
+                        onDeleteFolder={handleDeleteFolder}
+                        viewMode={isMobile ? 'comfortable' : viewMode} // На мобильных принудительно комфортный режим
+                      />
+                    </Grid>
+                  );
+                })}
               </Grid>
-            ))}
-          </Grid>
-        </Box>
-      )}
-
-      {/* Files grid */}
-      {filteredFiles.length > 0 ? (
-        <Box>
-          <Typography variant="subtitle1" sx={{ mb: 1 }}>Files</Typography>
-          <Grid container spacing={2}>
-            {filteredFiles.map((file) => (
-              <Grid 
-                item 
-                xs={12} 
-                sm={viewMode === 'list' ? 12 : viewMode === 'compact' ? 3 : viewMode === 'large' ? 6 : 4} 
-                md={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 4 : 3}
-                lg={viewMode === 'list' ? 12 : viewMode === 'compact' ? 2 : viewMode === 'large' ? 3 : 2.4}
-                key={file.id}
-              >
-                <FileItem 
-                  file={file}
-                  onDeleteFile={handleDeleteFile}
-                  onToggleVisibility={handleToggleFileVisibility}
-                  viewMode={viewMode}
-                />
+            </>
+          )}
+          
+          {/* Files section */}
+          {filteredFiles && filteredFiles.length > 0 && (
+            <>
+              <Typography variant="h6" sx={{ mb: 1 }}>Files</Typography>
+              <Grid container spacing={2}>
+                {filteredFiles.map((file) => {
+                  // Адаптивные размеры ячеек для разных устройств и режимов отображения
+                  return (
+                    <Grid 
+                      item 
+                      xs={12} 
+                      sm={viewMode === 'list' ? 12 : 6} 
+                      md={viewMode === 'list' ? 12 : viewMode === 'compact' ? 4 : viewMode === 'comfortable' ? 6 : 6}
+                      lg={viewMode === 'list' ? 12 : viewMode === 'compact' ? 3 : viewMode === 'comfortable' ? 4 : 6}
+                      key={file.id}
+                    >
+                      <FileItem 
+                        file={file}
+                        onDeleteFile={handleDeleteFile}
+                        onToggleVisibility={handleToggleFileVisibility}
+                        viewMode={isMobile ? 'comfortable' : viewMode} // На мобильных принудительно комфортный режим
+                      />
+                    </Grid>
+                  );
+                })}
               </Grid>
-            ))}
-          </Grid>
+            </>
+          )}
         </Box>
       ) : (
-        files.length === 0 && folders.length === 0 && (
-          <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 2 }}>
-            <FolderIcon sx={{ fontSize: 60, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
-            <Typography variant="h6" color="textSecondary" gutterBottom>
-              This folder is empty
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              Upload files or create folders to get started
-            </Typography>
-          </Paper>
-        )
+        <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 2 }}>
+          <FolderIcon sx={{ fontSize: 60, color: 'text.secondary', opacity: 0.3, mb: 2 }} />
+          <Typography variant="h6" color="textSecondary" gutterBottom>
+            This folder is empty
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            Upload files or create folders to get started
+          </Typography>
+        </Paper>
       )}
 
       {/* New Folder Dialog */}
