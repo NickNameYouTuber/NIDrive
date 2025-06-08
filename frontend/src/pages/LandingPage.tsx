@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Button, Container, Grid, Typography, Paper, Stack } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
-import { useTheme } from '../context/ThemeContext';
+import { useColorMode } from '../context/ThemeContext';
 import IconButton from '@mui/material/IconButton';
 import BrightnessMediumIcon from '@mui/icons-material/BrightnessMedium';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -12,7 +12,7 @@ import StorageIcon from '@mui/icons-material/Storage';
 
 const LandingPage: React.FC = () => {
   const theme = useMuiTheme();
-  const { toggleColorMode } = useTheme();
+  const { toggleColorMode } = useColorMode();
 
   const features = [
     {
