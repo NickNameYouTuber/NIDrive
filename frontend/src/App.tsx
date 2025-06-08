@@ -142,50 +142,12 @@ const App = () => {
           }}
         >
           <Router>
-            <Routes>
-              {/* Публичные маршруты */}
-              <Route path="/login" element={
-                <PublicRoute>
-                  <AuthLayout>
-                    <LoginPage />
-                  </AuthLayout>
-                </PublicRoute>
-              } />
-
-              {/* Защищенные маршруты */}
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <MainLayout>
-                    <DashboardPage />
-                  </MainLayout>
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/storage" element={
-                <ProtectedRoute>
-                  <MainLayout>
-                    <StoragePage />
-                  </MainLayout>
-                </ProtectedRoute>
-              } />
-
-              {/* Перенаправление на dashboard по умолчанию для авторизованных пользователей */}
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <MainLayout>
-                    <DashboardPage />
-                  </MainLayout>
-                </ProtectedRoute>
-              } />
-
-              {/* Страница 404 для всех остальных маршрутов */}
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
+            <AppRouter />
           </Router>
         </SnackbarProvider>
       </ThemeProvider>
     </AuthProvider>
   );
-}
+};
 
 export default App;
