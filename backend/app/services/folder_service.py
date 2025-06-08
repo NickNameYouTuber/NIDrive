@@ -108,56 +108,33 @@ def get_folder_tree(db: Session, owner_id: str) -> List[FolderTree]:
     
     return result
 
-def build_folder_tree(db: Session, folder: Folder, folder_dict: Dict[int, Folder]):
+def build_folder_tree(db: Session, folder: Folder, folder_dict: Dict[int, Folder]) -> FolderTree:
     """
     Recursively build a folder tree starting from a given folder
     """
-    children = []
+    # Get all direct children of this folder
+    children = [f for f in folder_dict.values() if f.parent_id == folder.id]
     
-    # Get child folders
-    child_folders = db.query(Folder).filter(
-        Folder.parent_id == folder.id,
-        Folder.is_deleted == False
-    ).all()
-    
-    # Get files in this folder
+    # Get all files in this folder
     files = db.query(File).filter(
         File.folder_id == folder.id,
         File.is_deleted == False
     ).all()
     
-    # Convert files to dict format
-    file_list = [{
-        "id": file.id,
-        "name": file.filename,
-        "type": "file",
-        "size": file.size_mb,
-        "mime_type": file.mime_type
-    } for file in files]
-    
-    # Build children tree
-    for child in child_folders:
-        if child.id in folder_dict:
-            # Avoid infinite recursion if there's a circular reference
-            continue
-            
-        folder_dict[child.id] = child
+    # Build child trees recursively
+    child_trees = []
+    for child in children:
         child_tree = build_folder_tree(db, child, folder_dict)
-        children.append(child_tree)
+        child_trees.append(child_tree)
     
-    return {
-        "id": folder.id,
-        "name": folder.name,
-        "type": "folder",
-        "children": children,
-        "files": file_list
-    }
-
-def get_recent_folders(db: Session, owner_id: str, limit: int = 10):
-    """
-    Get the most recently created folders for a user
-    """
-    return db.query(Folder).filter(
-        Folder.owner_id == owner_id,
-        Folder.is_deleted == False
-    ).order_by(Folder.created_at.desc()).limit(limit).all()
+    # Create the tree node for this folder
+    tree_node = FolderTree(
+        id=folder.id,
+        name=folder.name,
+        owner_id=folder.owner_id,
+        parent_id=folder.parent_id,
+        children=child_trees,
+        files=files
+    )
+    
+    return tree_node
