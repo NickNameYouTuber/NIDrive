@@ -125,10 +125,10 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId = null, isL
       }
     };
     
-    if (!isLoading) {
+    if (!parentLoading) {
       fetchData();
     }
-  }, [currentFolderId, isLoading, updateTrigger, enqueueSnackbar]);
+  }, [currentFolderId, parentLoading, updateTrigger, enqueueSnackbar]);
   
   // Apply search and filters
   useEffect(() => {
