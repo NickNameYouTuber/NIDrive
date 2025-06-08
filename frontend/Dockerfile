@@ -18,4 +18,4 @@ COPY . .
 EXPOSE 7071
 
 # Запускаем приложение
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "build"]
