@@ -1,5 +1,7 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SnackbarProvider } from 'notistack';
 import { lazy, Suspense, useState, useEffect } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
@@ -130,9 +132,60 @@ const AppRouter = () => {
 const App = () => {
   return (
     <AuthProvider>
-      <AppRouter />
+      <ThemeProvider>
+        <SnackbarProvider 
+          maxSnack={3} 
+          autoHideDuration={3000}
+          anchorOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+        >
+          <Router>
+            <Routes>
+              {/* Публичные маршруты */}
+              <Route path="/login" element={
+                <PublicRoute>
+                  <AuthLayout>
+                    <LoginPage />
+                  </AuthLayout>
+                </PublicRoute>
+              } />
+
+              {/* Защищенные маршруты */}
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <DashboardPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/storage" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <StoragePage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* Перенаправление на dashboard по умолчанию для авторизованных пользователей */}
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <DashboardPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* Страница 404 для всех остальных маршрутов */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Router>
+        </SnackbarProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
-};
+}
 
 export default App;

@@ -13,10 +13,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        dashboard: resolve(__dirname, 'dashboard.html'),
-        storage: resolve(__dirname, 'storage.html'),
-        login: resolve(__dirname, 'login.html')
+        main: resolve(__dirname, 'index.html')
       }
     }
   },
