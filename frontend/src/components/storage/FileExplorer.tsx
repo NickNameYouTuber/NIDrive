@@ -83,7 +83,6 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId = null, isL
   const [localLoading, setLocalLoading] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<ViewMode>(isMobile ? 'comfortable' : 'list');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortOption, setSortOption] = useState<string>('name-asc');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
   
   // View options
