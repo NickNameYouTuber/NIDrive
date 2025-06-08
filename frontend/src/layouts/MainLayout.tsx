@@ -28,7 +28,7 @@ import StorageIcon from '@mui/icons-material/Storage';
 import BrightnessMediumIcon from '@mui/icons-material/BrightnessMedium';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
+import { useColorMode } from '../context/ThemeContext';
 
 const drawerWidth = 240;
 
@@ -40,7 +40,7 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({ children, hideNav = false }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { mode, toggleColorMode } = useTheme();
+  const { mode, toggleColorMode } = useColorMode();
   const theme = useMuiTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
