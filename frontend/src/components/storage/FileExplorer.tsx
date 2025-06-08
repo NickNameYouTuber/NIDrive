@@ -311,7 +311,7 @@ const FileExplorer: React.FC<FileExplorerProps> = ({ currentFolderId = null, isL
     }
   };
 
-  if (isLoading || localLoading) {
+  if (parentLoading || localLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
         <CircularProgress />
