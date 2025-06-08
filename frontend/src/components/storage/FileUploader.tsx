@@ -160,6 +160,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({ currentFolderId, onFileUplo
 
   return (
     <Paper sx={{ p: 3, borderRadius: 2 }}>
+      <Typography variant="h6" gutterBottom>
+        Upload Files
+      </Typography>
+      
       <Box
         onDrop={handleDrop}
         onDragOver={handleDragOver}

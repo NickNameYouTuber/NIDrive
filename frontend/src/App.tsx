@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
@@ -26,12 +26,24 @@ const PageLoader = () => (
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
+  const [tokenChecked, setTokenChecked] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
 
-  if (loading) {
+  // Дополнительная проверка наличия токена в localStorage
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    setHasToken(!!token);
+    setTokenChecked(true);
+  }, []);
+
+  // Показываем загрузку, пока не проверили и токен, и состояние авторизации
+  if (loading || !tokenChecked) {
     return <PageLoader />;
   }
 
-  if (!isAuthenticated) {
+  // Если нет токена или пользователь не аутентифицирован, перенаправляем на страницу входа
+  if (!isAuthenticated || !hasToken) {
+    console.log('Authentication failed, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
