@@ -29,16 +29,6 @@ const StoragePage: React.FC = () => {
   const [filesUpdateTrigger, setFilesUpdateTrigger] = useState<number>(0);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const currentFolderId = folderId ? parseInt(folderId, 10) : null;
-
-  // Дополнительная проверка аутентификации
-  useEffect(() => {
-    // Проверяем наличие токена
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      console.error('Authentication token is missing');
-      navigate('/login');
-    }
-  }, [navigate]);
   
   // Функция для обновления списка файлов
   const refreshFiles = () => {

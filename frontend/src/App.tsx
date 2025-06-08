@@ -1,8 +1,6 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { SnackbarProvider } from 'notistack';
-import { lazy, Suspense, useState, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
@@ -28,24 +26,12 @@ const PageLoader = () => (
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
-  const [tokenChecked, setTokenChecked] = useState(false);
-  const [hasToken, setHasToken] = useState(false);
 
-  // Дополнительная проверка наличия токена в localStorage
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    setHasToken(!!token);
-    setTokenChecked(true);
-  }, []);
-
-  // Показываем загрузку, пока не проверили и токен, и состояние авторизации
-  if (loading || !tokenChecked) {
+  if (loading) {
     return <PageLoader />;
   }
 
-  // Если нет токена или пользователь не аутентифицирован, перенаправляем на страницу входа
-  if (!isAuthenticated || !hasToken) {
-    console.log('Authentication failed, redirecting to login');
+  if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -132,20 +118,7 @@ const AppRouter = () => {
 const App = () => {
   return (
     <AuthProvider>
-      <ThemeProvider>
-        <SnackbarProvider 
-          maxSnack={3} 
-          autoHideDuration={3000}
-          anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-        >
-          <Router>
-            <AppRouter />
-          </Router>
-        </SnackbarProvider>
-      </ThemeProvider>
+      <AppRouter />
     </AuthProvider>
   );
 };
