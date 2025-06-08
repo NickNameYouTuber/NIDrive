@@ -46,7 +46,10 @@ const LoginPage: React.FC = () => {
       
       if (success) {
         enqueueSnackbar('Login successful', { variant: 'success' });
-        navigate('/dashboard');
+        // Получаем сохраненный URL для перенаправления или используем /dashboard по умолчанию
+        const redirectPath = localStorage.getItem('redirectAfterLogin') || '/dashboard';
+        localStorage.removeItem('redirectAfterLogin'); // Очищаем после использования
+        navigate(redirectPath);
       } else {
         enqueueSnackbar('Login failed. Please try again.', { variant: 'error' });
       }

@@ -32,6 +32,8 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
   }
 
   if (!isAuthenticated) {
+    // Сохраняем адрес страницы, на которую пытались попасть
+    localStorage.setItem('redirectAfterLogin', location.pathname + location.search);
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
