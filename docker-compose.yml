@@ -20,6 +20,7 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - API_BASE_URL=${API_BASE_URL}
       - WEB_APP_URL=${WEB_APP_URL}
+      - MAX_FILE_SIZE_MB=102400
     restart: unless-stopped
 
   frontend:

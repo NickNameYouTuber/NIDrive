@@ -23,7 +23,7 @@ class Settings(BaseModel):
     MONGO_DB_NAME: str = os.getenv("MONGO_DB_NAME", "file_storage")
     
     # File size limits
-    MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", 200))  # Default 200MB per file
+    MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", 102400))  # Default 100GB per file (102400 MB)
     
     # Public URL for API access (prefer API_BASE_URL env var)
     PUBLIC_URL: str = os.getenv("API_BASE_URL", os.getenv("WEB_APP_URL", "http://localhost:7070"))

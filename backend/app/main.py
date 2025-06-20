@@ -9,7 +9,9 @@ from .core.database import Base, engine
 app = FastAPI(
     title="NIDrive API",
     description="API for NIDrive - Telegram-based Cloud Storage",
-    version="1.0.0"
+    version="1.0.0",
+    # Увеличиваем лимиты для загрузки больших файлов (100 ГБ)
+    max_upload_size=107374182400  # 100 ГБ в байтах
 )
 
 # CORS Configuration
