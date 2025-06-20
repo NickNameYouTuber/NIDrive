@@ -115,3 +115,11 @@ class UserStats(BaseModel):
     used_space: float
     quota: float
     usage_percent: float
+    
+# Admin Schemas
+class UserQuotaUpdate(BaseModel):
+    quota: float = Field(..., description="New quota in MB")
+    
+class AdminUserResponse(UserResponse):
+    """Extended user response with additional information for admins"""
+    pass

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
-from .api import auth, files, folders, users
+from .api import auth, files, folders, users, admin
 from .core.config import settings
 from .core.database import Base, engine
 
@@ -33,6 +33,7 @@ app.include_router(auth.router, tags=["authentication"])
 app.include_router(users.router, tags=["users"])
 app.include_router(files.router, tags=["files"])
 app.include_router(folders.router, tags=["folders"])
+app.include_router(admin.router, tags=["admin"])
 
 # Mount static files for public access
 os.makedirs(settings.UPLOAD_DIR + "/public_files", exist_ok=True)

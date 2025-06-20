@@ -64,17 +64,38 @@ def get_user_stats(db: Session, user: User):
     )
 
 def update_user_space_usage(db: Session, telegram_id: str, size_change: float):
-    """
-    Update the user's space usage.
+    """Update the user's space usage.
     Use positive value for size_change when adding files.
     Use negative value for size_change when removing files.
     """
     user = get_user_by_telegram_id(db, telegram_id)
-    if user:
-        user.used_space += size_change
-        # Ensure used_space doesn't go below 0
-        if user.used_space < 0:
-            user.used_space = 0
-        db.commit()
-        return user
-    return None
+    if not user:
+        return None
+    
+    # Update used space
+    user.used_space += size_change
+    
+    # Ensure used_space doesn't go below 0
+    if user.used_space < 0:
+        user.used_space = 0
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def get_all_users(db: Session, skip: int = 0, limit: int = 100):
+    """Get all users with pagination"""
+    return db.query(User).offset(skip).limit(limit).all()
+
+
+def update_user_quota(db: Session, user_id: int, new_quota: float):
+    """Update a user's disk quota in MB"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None
+    
+    user.quota = new_quota
+    db.commit()
+    db.refresh(user)
+    return user
