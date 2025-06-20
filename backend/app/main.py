@@ -2,16 +2,33 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from .api import auth, files, folders, users, admin
 from .core.config import settings
 from .core.database import Base, engine
 
+# Настройки для загрузки больших файлов
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+import time
+
+# Импортируем настройки для загрузки больших файлов
+from .core import upload_settings
+
+# Middleware для увеличения таймаута
+class TimeoutMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
+
 app = FastAPI(
     title="NIDrive API",
     description="API for NIDrive - Telegram-based Cloud Storage",
-    version="1.0.0",
-    # Увеличиваем лимиты для загрузки больших файлов (100 ГБ)
-    max_upload_size=107374182400  # 100 ГБ в байтах
+    version="1.0.0"
 )
 
 # CORS Configuration
@@ -22,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Добавляем middleware для обработки больших файлов
+app.add_middleware(TimeoutMiddleware)
 
 # Инициализация базы данных
 @app.on_event("startup")

@@ -9,3 +9,5 @@ aiofiles>=0.8.0
 python-dotenv>=1.0.0
 httpx>=0.24.0
 pymongo>=4.4.0
+asyncio>=3.4.3
+starlette>=0.27.0

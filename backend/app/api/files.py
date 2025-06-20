@@ -45,12 +45,20 @@ async def upload_file(
     """
     Upload a new file to user's storage
     """
-    # Check file size
-    # Read file into memory - this could be optimized for large files
-    file_content = await file.read()
-    file_size_mb = len(file_content) / (1024 * 1024)  # Convert bytes to MB
+    # Оптимизированная проверка размера файла для больших файлов
+    # Получаем размер файла из заголовка, если доступно
+    try:
+        file_size_bytes = file.size
+    except:
+        # Если размер не доступен в заголовке, читаем только начало файла
+        # и используем Content-Length заголовок
+        file_size_bytes = file.file._file.tell()
+        if hasattr(file.file, "content_length") and file.file.content_length:
+            file_size_bytes = file.file.content_length
     
-    # Check file size against limit
+    file_size_mb = file_size_bytes / (1024 * 1024)  # Convert bytes to MB
+    
+    # Проверяем размер файла против лимита
     if file_size_mb > settings.MAX_FILE_SIZE_MB:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -72,9 +80,18 @@ async def upload_file(
     storage_filename = f"{current_user.telegram_id}_{file_uuid}_{file.filename}"
     storage_path = os.path.join(storage_dir, storage_filename)
     
-    # Save file to storage
+    # Сохраняем файл в хранилище с использованием потоковой записи
+    # Для больших файлов используем чтение и запись по частям
     with open(storage_path, "wb") as buffer:
-        buffer.write(file_content)
+        # Сбрасываем позицию чтения файла в начало
+        await file.seek(0)
+        # Читаем и записываем файл по частям (10 МБ за раз)
+        chunk_size = 10 * 1024 * 1024  # 10 МБ
+        while True:
+            chunk = await file.read(chunk_size)
+            if not chunk:
+                break
+            buffer.write(chunk)
     
     # Generate public URL if file is public
     public_url = None

@@ -14,4 +14,5 @@ RUN mkdir -p /app/uploads/public_files
 
 EXPOSE 7070
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7070", "--reload"]
+# Увеличиваем лимит на размер запроса до 100 ГБ через конфигурационный файл
+CMD ["uvicorn", "--config", "uvicorn_config.py"]
