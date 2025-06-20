@@ -25,6 +25,21 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         response.headers["X-Process-Time"] = str(process_time)
         return response
 
+# Создаем конфигурацию FastAPI с увеличенным лимитом на размер файлов
+from fastapi.openapi.utils import get_openapi
+
+# Настройка для больших файлов
+from starlette.requests import Request
+from starlette.responses import Response
+
+# Увеличиваем лимит на размер загружаемых файлов
+from fastapi import UploadFile as FastAPIUploadFile
+from starlette.datastructures import UploadFile as StarletteUploadFile
+
+# Устанавливаем максимальный размер файла в 100 ГБ
+FastAPIUploadFile.spool_max_size = 107374182400  # 100 ГБ в байтах
+StarletteUploadFile.spool_max_size = 107374182400  # 100 ГБ в байтах
+
 app = FastAPI(
     title="NIDrive API",
     description="API for NIDrive - Telegram-based Cloud Storage",
